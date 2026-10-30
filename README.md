@@ -1,56 +1,52 @@
-# Welcome to your Expo app 👋
+# Solune
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Acompanhe o sol e a lua: horários de luz, fases, trajetos e um céu em realidade aumentada.
+Projeto Expo (SDK 58) para iOS, Android e web.
 
-## Get started
-
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Rodar
 
 ```bash
-npm run reset-project
+npm install
+npx expo start
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+Pressione `i` para o simulador iOS, `a` para o emulador Android ou `w` para a web.
+Tudo roda no Expo Go. Para lembretes confiáveis e o AR com câmera em produção, gere um development build:
 
-### Other setup steps
+```bash
+npx expo run:ios
+```
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+O modo AR com câmera precisa de um aparelho físico (simuladores não têm câmera nem bússola). No simulador e na web, o AR abre no modo **Céu virtual**, que você navega arrastando e fazendo pinça.
 
-## Learn more
+## Funcionalidades
 
-To learn more about developing your project with Expo, look at the following resources:
+- **Hoje**: próximo evento em destaque, céu de fundo que muda com a altitude do sol, gráfico do trajeto do sol e da lua que você arrasta para ver qualquer horário (o céu acompanha), nascer e pôr com direção, horas dourada e azul, linha do tempo dos crepúsculos, bússola com posição atual e tamanho da sua sombra, duração do dia ao longo do ano.
+- **Lua**: fase renderizada com o lado iluminado correto para o seu hemisfério, arraste para viajar ±15 dias, nascer e ocaso, distância com perigeu e apogeu, superluas e microluas, próximas fases e calendário lunar do mês.
+- **Eventos**: planejador de dia com 60 dias, solstícios e equinócios do seu hemisfério, eclipses solares e lunares (com visibilidade local), luas cheias com nomes tradicionais e chuvas de meteoros com aviso sobre a lua.
+- **Céu AR**: câmera com o trajeto de hoje, marcadores de hora, trajetos dos solstícios, lua, pontos cardeais, grade de altitude, seta para o sol fora da tela, controle de horário e calibração tocando no sol.
+- **Diário**: registre nasceres, pores do sol e luas, mantenha uma sequência, ganhe XP, suba de nível e desbloqueie conquistas com celebração animada.
+- **Onboarding** em 8 passos com interesses que pré-configuram os lembretes, pedido de localização e de notificações.
+- **Lembretes locais** para nascer, pôr, hora dourada, lua cheia e lua nova, com antecedência configurável.
+- **Locais**: localização atual, busca offline de cidades e busca por geocodificação, com fuso horário correto por lugar.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Estrutura
 
-## Join the community
+```
+src/
+  app/          rotas (Expo Router): onboarding, abas, ar, settings, locations, celebrate
+  astro/        motor astronômico (astronomy-engine), fusos e formatação pt-BR
+  components/   céu dinâmico, glifos de sol e lua, gráficos, botões táteis, barra de abas
+  hooks/        dados do dia, posições ao vivo, janela de registro
+  lib/          AR (pose e projeção), conquistas, cidades, localização, notificações, haptics
+  store/        estado persistente (zustand + AsyncStorage)
+  theme/        tokens de cor, tipografia, movimento e paletas do céu
+```
 
-Join our community of developers creating universal apps.
+## Design
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- Fonte Manrope (sem serifa), com numerais tabulares para horários.
+- Uma cor de destaque (dourado solar); o prata da lua é cor de dado, não de ação.
+- Formas: ações em pílula, cards com raio 24, peças internas com raio 14.
+- Ícones SF Symbols no iOS e Material Symbols no Android e na web.
+- Movimento com Reanimated no thread de UI, respeitando "Reduzir movimento".

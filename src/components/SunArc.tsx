@@ -16,7 +16,7 @@ import { formatMinuteOfDay } from '@/astro/format';
 import { PATH_STEP_MIN } from '@/astro/sun';
 import { haptic } from '@/lib/haptics';
 import { EASE_OUT } from '@/theme/motion';
-import { colors, font, radius, space } from '@/theme/tokens';
+import { colors, weight, radius, space } from '@/theme/tokens';
 
 import { AnimatedText } from './AnimatedText';
 import { MoonGlyph } from './MoonGlyph';
@@ -175,7 +175,7 @@ export const SunArc = memo(function SunArc({ sunAlt, moonAlt, nowMinute, scrub, 
         </View>
         {offNow ? (
           <PressableScale onPress={resetToNow} style={styles.nowPill} hapticOnPress="soft">
-            <Text variant="caption" color={colors.textOnAccent}>
+            <Text variant="label" color={colors.onPrimary}>
               Agora
             </Text>
           </PressableScale>
@@ -221,7 +221,7 @@ export const SunArc = memo(function SunArc({ sunAlt, moonAlt, nowMinute, scrub, 
                       x={Math.min(width - 2, Math.max(2, (i / 4) * width))}
                       y={height - 4}
                       fontSize={10}
-                      fontFamily={font.semibold}
+                      fontWeight={weight.semibold}
                       fill="rgba(255,255,255,0.45)"
                       textAnchor={i === 0 ? 'start' : i === 4 ? 'end' : 'middle'}>
                       {l}
@@ -245,7 +245,7 @@ export const SunArc = memo(function SunArc({ sunAlt, moonAlt, nowMinute, scrub, 
 const styles = StyleSheet.create({
   readoutRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: space.xs, minHeight: 56 },
   nowPill: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.primary,
     paddingHorizontal: space.sm,
     paddingVertical: 6,
     borderRadius: radius.pill,

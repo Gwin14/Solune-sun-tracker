@@ -40,6 +40,7 @@ type State = {
   badges: Record<string, number>;
   xp: number;
   arSessions: number;
+  lastArDay: string | null;
   celebrationQueue: string[];
 };
 
@@ -101,6 +102,7 @@ export const useApp = create<State & Actions>()(
       badges: {},
       xp: 0,
       arSessions: 0,
+      lastArDay: null,
       celebrationQueue: [],
 
       setHydrated: () => set({ hydrated: true }),
@@ -136,7 +138,10 @@ export const useApp = create<State & Actions>()(
         return true;
       },
       logArSession: () => {
-        set((s) => ({ arSessions: s.arSessions + 1, xp: s.xp + XP.ar }));
+        // The sky tab is visited often; it counts (and earns XP) once a day.
+        const today = dayKey(new Date());
+        if (get().lastArDay === today) return;
+        set((s) => ({ arSessions: s.arSessions + 1, xp: s.xp + XP.ar, lastArDay: today }));
         get().evaluateBadges();
       },
       shiftCelebration: () => set((s) => ({ celebrationQueue: s.celebrationQueue.slice(1) })),

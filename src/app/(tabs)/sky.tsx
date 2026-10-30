@@ -1,9 +1,9 @@
 import * as A from 'astronomy-engine';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
-import { router } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { DeviceMotion } from 'expo-sensors';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, usePanGesture, usePinchGesture, useSimultaneousGestures } from 'react-native-gesture-handler';
 import Animated, { FadeIn, FadeOut, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -21,12 +21,13 @@ import { MoonGlyph } from '@/components/MoonGlyph';
 import { SkyBackground } from '@/components/SkyBackground';
 import { PressableScale } from '@/components/Pressable';
 import { SunGlyph } from '@/components/SunGlyph';
+import { TAB_BAR_HEIGHT } from '@/components/TabSpace';
 import { Text } from '@/components/Text';
 import { usePlace } from '@/hooks/useAstro';
 import { angleDiff, edgeIndicator, makeProjector, polylines, poseFromRotation, smoothAngle, wrap360, type Pose } from '@/lib/arMath';
 import { haptic } from '@/lib/haptics';
 import { useApp } from '@/store/app';
-import { colors, font, radius, space } from '@/theme/tokens';
+import { colors, weight, radius, space } from '@/theme/tokens';
 
 type Mode = 'camera' | 'virtual';
 type Layers = { sun: boolean; moon: boolean; solstices: boolean; grid: boolean };
@@ -56,7 +57,7 @@ export default function ArScreen() {
   }, []);
 
   // ---- astronomy for today ----
-  const now = useMemo(() => new Date(), []);
+  const [now, setNow] = useState(() => new Date());
   const dayStart = useMemo(() => startOfDay(now, tz), [now, tz]);
   const nowMinute = wallClock(now, tz).minuteOfDay;
   const [minute, setMinute] = useState(nowMinute);
@@ -83,9 +84,18 @@ export default function ArScreen() {
   const offset = useRef({ az: 0, alt: 0 });
   const smooth = useRef<Pose | null>(null);
 
-  useEffect(() => {
-    useApp.getState().logArSession();
-  }, []);
+  // As a tab this screen stays mounted: run the camera and sensors only while it is in front.
+  const [focused, setFocused] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true);
+      const fresh = new Date();
+      setNow(fresh);
+      setMinute(wallClock(fresh, tz).minuteOfDay);
+      useApp.getState().logArSession();
+      return () => setFocused(false);
+    }, [tz]),
+  );
 
   useEffect(() => {
     let alive = true;
@@ -112,7 +122,7 @@ export default function ArScreen() {
   const mode: Mode = modeChoice ?? (sensorsOk && cameraPerm?.granted ? 'camera' : 'virtual');
 
   useEffect(() => {
-    if (mode !== 'camera' || !sensorsOk) return;
+    if (mode !== 'camera' || !sensorsOk || !focused) return;
     smooth.current = null;
     DeviceMotion.setUpdateInterval(33);
     const sub = DeviceMotion.addListener((m) => {
@@ -142,7 +152,7 @@ export default function ArScreen() {
       sub.remove();
       headingSub?.remove();
     };
-  }, [mode, sensorsOk]);
+  }, [mode, sensorsOk, focused]);
 
   // ---- virtual sky gestures ----
   const start = useRef({ az: 0, alt: 0, fov: 70 });
@@ -271,7 +281,7 @@ export default function ArScreen() {
 
   return (
     <View style={styles.root}>
-      {mode === 'camera' && cameraPerm?.granted ? <CameraView style={StyleSheet.absoluteFill} facing="back" /> : <VirtualSky sunAlt={selected.sun.alt} />}
+      {mode === 'camera' && cameraPerm?.granted && focused ? <CameraView style={StyleSheet.absoluteFill} facing="back" /> : <VirtualSky sunAlt={selected.sun.alt} />}
       {mode === 'camera' ? <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(4,8,30,0.18)' }]} pointerEvents="none" /> : null}
 
       <GestureDetector gesture={gestures}>
@@ -292,7 +302,7 @@ export default function ArScreen() {
             {geo.cardinals.map((c) => (
               <G key={c.l}>
                 <Circle cx={c.x} cy={c.y} r={3} fill={c.l === 'N' ? colors.accent : '#FFFFFF'} />
-                <SvgText x={c.x} y={c.y + 20} fontSize={c.l.length === 1 ? 15 : 12} fontFamily={font.heavy} fill={c.l === 'N' ? colors.accent : '#FFFFFF'} textAnchor="middle">
+                <SvgText x={c.x} y={c.y + 20} fontSize={c.l.length === 1 ? 15 : 12} fontWeight={weight.bold} fill={c.l === 'N' ? colors.accent : '#FFFFFF'} textAnchor="middle">
                   {c.l}
                 </SvgText>
               </G>
@@ -319,7 +329,7 @@ export default function ArScreen() {
                 {geo.sunHours.map((h) => (
                   <G key={`hr${h.h}`}>
                     <Circle cx={h.x} cy={h.y} r={4} fill="#FFFFFF" stroke={colors.accent} strokeWidth={2} />
-                    <SvgText x={h.x + 9} y={h.y - 8} fontSize={11} fontFamily={font.bold} fill="#FFFFFF">
+                    <SvgText x={h.x + 9} y={h.y - 8} fontSize={11} fontWeight={weight.bold} fill="#FFFFFF">
                       {use24h ? `${h.h}h` : `${h.h % 12 || 12}${h.h < 12 ? 'a' : 'p'}`}
                     </SvgText>
                   </G>
@@ -358,7 +368,7 @@ export default function ArScreen() {
       {/* Top HUD */}
       <View style={[styles.hudTop, { paddingTop: insets.top + space.xs }]} pointerEvents="box-none">
         <View style={styles.hudRow} pointerEvents="box-none">
-          <HudButton icon="close" label="Fechar" onPress={() => router.back()} />
+          <View style={{ width: 42 }} />
           <View style={styles.modeSwitch}>
             {(['camera', 'virtual'] as Mode[]).map((m) => (
               <PressableScale
@@ -368,7 +378,7 @@ export default function ArScreen() {
                 style={[styles.modeBtn, mode === m && styles.modeBtnOn]}
                 accessibilityRole="button"
                 accessibilityState={{ selected: mode === m }}>
-                <Text variant="subhead" color={mode === m ? colors.textOnAccent : colors.text}>
+                <Text variant="subhead" color={mode === m ? colors.onPrimary : colors.text} style={{ fontWeight: '600' }}>
                   {m === 'camera' ? 'Câmera' : 'Céu virtual'}
                 </Text>
               </PressableScale>
@@ -415,7 +425,7 @@ export default function ArScreen() {
       </View>
 
       {/* Bottom HUD */}
-      <View style={[styles.hudBottom, { paddingBottom: Math.max(insets.bottom, space.md) }]} pointerEvents="box-none">
+      <View style={[styles.hudBottom, { paddingBottom: insets.bottom + TAB_BAR_HEIGHT - space.md }]} pointerEvents="box-none">
         <View style={styles.infoRow}>
           <InfoChip icon="sunrise" label={formatTime(data.day.sunrise, tz, use24h)} />
           <InfoChip icon="sun" label={`${formatDegrees(selected.sun.az)} · ${formatDegrees(selected.sun.alt)}`} highlight />
@@ -471,8 +481,8 @@ function VirtualSky({ sunAlt }: { sunAlt: number }) {
 
 function HudButton({ icon, label, onPress, active }: { icon: IconName; label: string; onPress: () => void; active?: boolean }) {
   return (
-    <PressableScale onPress={onPress} hapticOnPress="soft" accessibilityLabel={label} accessibilityRole="button" style={[styles.hudBtn, active && { backgroundColor: colors.accent }]}>
-      <Icon name={icon} size={17} color={active ? colors.textOnAccent : colors.text} />
+    <PressableScale onPress={onPress} hapticOnPress="soft" accessibilityLabel={label} accessibilityRole="button" style={[styles.hudBtn, active && { backgroundColor: colors.primary }]}>
+      <Icon name={icon} size={17} color={active ? colors.onPrimary : colors.text} />
     </PressableScale>
   );
 }
@@ -480,8 +490,8 @@ function HudButton({ icon, label, onPress, active }: { icon: IconName; label: st
 function LayerToggle({ icon, label, on, onPress }: { icon: IconName; label: string; on: boolean; onPress: () => void }) {
   return (
     <PressableScale onPress={onPress} hapticOnPress="tick" style={[styles.layerChip, on && styles.layerChipOn]} accessibilityRole="switch" accessibilityState={{ checked: on }}>
-      <Icon name={icon} size={14} color={on ? colors.textOnAccent : colors.text} />
-      <Text variant="subhead" color={on ? colors.textOnAccent : colors.text}>
+      <Icon name={icon} size={14} color={on ? colors.onPrimary : colors.text} />
+      <Text variant="subhead" color={on ? colors.onPrimary : colors.text}>
         {label}
       </Text>
     </PressableScale>
@@ -546,7 +556,7 @@ function TimeScrubber({
         </Text>
         {off ? (
           <PressableScale onPress={() => onChange(nowMinute)} hapticOnPress="soft" style={styles.nowPill}>
-            <Text variant="caption" color={colors.textOnAccent}>
+            <Text variant="label" color={colors.onPrimary}>
               Agora
             </Text>
           </PressableScale>
@@ -592,11 +602,11 @@ const styles = StyleSheet.create({
   hudBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: glassBg, alignItems: 'center', justifyContent: 'center' },
   modeSwitch: { flexDirection: 'row', backgroundColor: glassBg, borderRadius: radius.pill, padding: 4, gap: 4 },
   modeBtn: { paddingHorizontal: space.sm, height: 34, borderRadius: radius.pill, justifyContent: 'center' },
-  modeBtnOn: { backgroundColor: colors.accent },
+  modeBtnOn: { backgroundColor: colors.primary },
   headingPill: { alignItems: 'center', backgroundColor: glassBg, paddingHorizontal: space.md, paddingVertical: 6, borderRadius: radius.pill },
   layers: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: space.xs },
   layerChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: space.sm, height: 36, borderRadius: radius.pill, backgroundColor: glassBg },
-  layerChipOn: { backgroundColor: colors.accent },
+  layerChipOn: { backgroundColor: colors.primary },
   legend: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: glassBg, paddingHorizontal: space.sm, paddingVertical: 4, borderRadius: radius.pill },
   legendLine: { width: 16, height: 3, borderRadius: 2 },
   notice: { flexDirection: 'row', alignItems: 'center', gap: space.xs, backgroundColor: glassBg, paddingHorizontal: space.sm, paddingVertical: space.xs, borderRadius: radius.tile, maxWidth: 340 },
@@ -606,7 +616,7 @@ const styles = StyleSheet.create({
   bottomActions: { alignItems: 'center', minHeight: 36, justifyContent: 'center' },
   smallAction: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: glassBg, paddingHorizontal: space.md, height: 36, borderRadius: radius.pill },
   scrubHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.xxs },
-  nowPill: { backgroundColor: colors.accent, paddingHorizontal: space.sm, paddingVertical: 4, borderRadius: radius.pill },
+  nowPill: { backgroundColor: colors.primary, paddingHorizontal: space.sm, paddingVertical: 4, borderRadius: radius.pill },
   track: { height: 44, borderRadius: radius.pill, backgroundColor: glassBg, justifyContent: 'center', overflow: 'visible' },
   daySpan: { position: 'absolute', top: 18, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,182,72,0.45)' },
   nowTick: { position: 'absolute', top: 12, width: 2, height: 20, borderRadius: 1, backgroundColor: '#FFFFFF' },

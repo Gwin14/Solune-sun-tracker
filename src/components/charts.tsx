@@ -5,7 +5,7 @@ import Svg, { Circle, Defs, G, Line, LinearGradient, Path, Rect, Stop, Text as S
 
 import { MONTHS_SHORT } from '@/astro/format';
 import { SNAP } from '@/theme/motion';
-import { colors, font, radius } from '@/theme/tokens';
+import { colors, weight, radius } from '@/theme/tokens';
 
 function useWidth() {
   const [w, setW] = useState(0);
@@ -123,7 +123,7 @@ export const DaylightChart = memo(function DaylightChart({
             const t = Date.UTC(d.getUTCFullYear(), i, 15);
             if (i % 2) return null;
             return (
-              <SvgText key={m} x={geo.x(t)} y={height - 6} fontSize={10} fontFamily={font.semibold} fill="rgba(255,255,255,0.5)" textAnchor="middle">
+              <SvgText key={m} x={geo.x(t)} y={height - 6} fontSize={10} fontWeight={weight.semibold} fill="rgba(255,255,255,0.5)" textAnchor="middle">
                 {m}
               </SvgText>
             );
@@ -178,7 +178,7 @@ export const CompassDial = memo(function CompassDial({
       {labels.map(([l, a]) => {
         const p = pt(a, ring + 9);
         return (
-          <SvgText key={l} x={p.x} y={p.y + 4} fontSize={11} fontFamily={font.bold} fill={l === 'N' ? colors.accent : 'rgba(255,255,255,0.7)'} textAnchor="middle">
+          <SvgText key={l} x={p.x} y={p.y + 4} fontSize={11} fontWeight={weight.bold} fill={l === 'N' ? colors.accent : 'rgba(255,255,255,0.7)'} textAnchor="middle">
             {l}
           </SvgText>
         );
@@ -197,18 +197,31 @@ export const CompassDial = memo(function CompassDial({
   );
 });
 
-/** Chunky Duolingo-style progress bar with a highlight stripe; animates on change. */
-export function ProgressBar({ value, color = colors.accent, height = 14, delay = 0 }: { value: number; color?: string; height?: number; delay?: number }) {
+/** Slim progress track that eases to its value on mount and on change. */
+export function ProgressBar({ value, color = colors.accent, height = 4, delay = 0 }: { value: number; color?: string; height?: number; delay?: number }) {
   const v = useSharedValue(0);
   useEffect(() => {
     v.set(withDelay(delay, withSpring(Math.max(0, Math.min(1, value)), SNAP)));
   }, [value, delay, v]);
-  const fill = useAnimatedStyle(() => ({ width: `${Math.max(v.get() * 100, v.get() > 0 ? 6 : 0)}%` }));
+  const fill = useAnimatedStyle(() => ({ transform: [{ scaleX: v.get() }] }));
   return (
-    <View style={{ height, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.14)', overflow: 'hidden' }}>
-      <Animated.View style={[{ height, borderRadius: radius.pill, backgroundColor: color }, fill]}>
-        <View style={{ position: 'absolute', left: height / 2, right: height / 2, top: height * 0.22, height: Math.max(2, height * 0.22), borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.4)' }} />
-      </Animated.View>
+    <View style={{ height, borderRadius: radius.pill, backgroundColor: colors.fillStrong, overflow: 'hidden' }}>
+      <Animated.View style={[{ height, borderRadius: radius.pill, backgroundColor: color, transformOrigin: 'left' }, fill]} />
     </View>
+  );
+}
+
+/** Thin medallion ring that fills with progress; the badge icon sits in the middle. */
+export function ProgressRing({ size, progress, color, track = colors.hairline, stroke = 1.5 }: { size: number; progress: number; color: string; track?: string; stroke?: number }) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const p = Math.max(0, Math.min(1, progress));
+  return (
+    <Svg width={size} height={size} style={{ position: 'absolute', transform: [{ rotate: '-90deg' }] }}>
+      <Circle cx={size / 2} cy={size / 2} r={r} stroke={track} strokeWidth={stroke} fill="none" />
+      {p > 0 ? (
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke={color} strokeWidth={stroke} fill="none" strokeDasharray={`${c * p} ${c}`} strokeLinecap="round" />
+      ) : null}
+    </Svg>
   );
 }

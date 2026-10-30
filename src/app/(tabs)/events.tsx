@@ -14,7 +14,7 @@ import { MoonGlyph } from '@/components/MoonGlyph';
 import { PressableScale } from '@/components/Pressable';
 import { Metric, Reveal, ScreenTitle } from '@/components/Screen';
 import { SkyBackground } from '@/components/SkyBackground';
-import { useTabBarSpace } from '@/components/TabBar';
+import { useTabBarSpace } from '@/components/TabSpace';
 import { Text } from '@/components/Text';
 import { TopFade } from '@/components/TopFade';
 import { useEvents, useNow, usePlace } from '@/hooks/useAstro';
@@ -84,7 +84,7 @@ export default function EventsScreen() {
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
                 style={[styles.filter, active && styles.filterActive]}>
-                <Text variant="subhead" color={active ? colors.textOnAccent : colors.text}>
+                <Text variant="subhead" color={active ? colors.onPrimary : colors.text} style={{ fontWeight: '500' }}>
                   {f.label}
                 </Text>
               </PressableScale>
@@ -207,10 +207,10 @@ function DayPlanner() {
           const active = i === index;
           return (
             <PressableScale onPress={() => setIndex(i)} hapticOnPress="tick" style={[styles.day, active && styles.dayActive]} accessibilityLabel={formatDate(item, tz, 'weekday')}>
-              <Text variant="caption" color={active ? colors.textOnAccent : colors.textSecondary}>
+              <Text variant="caption" color={active ? colors.onPrimary : colors.textSecondary}>
                 {i === 0 ? 'hoje' : WEEKDAYS_SHORT[w.weekday]}
               </Text>
-              <Text variant="headline" color={active ? colors.textOnAccent : colors.text}>
+              <Text variant="headline" color={active ? colors.onPrimary : colors.text}>
                 {w.day}
               </Text>
             </PressableScale>
@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.16)',
   },
-  filterActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  filterActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   eventRow: { flexDirection: 'row', gap: space.sm, padding: space.md },
   dateBadge: {
     width: 44,
@@ -290,6 +290,6 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: 'rgba(255,255,255,0.14)',
   },
-  dayActive: { backgroundColor: colors.accent, borderColor: colors.accent },
+  dayActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   planRow: { flexDirection: 'row', gap: space.sm },
 });

@@ -1,14 +1,14 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { FadeOutUp, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming, ZoomIn } from 'react-native-reanimated';
+import Animated, { FadeOutUp, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming, FadeInDown } from 'react-native-reanimated';
 
 import { computeStreak } from '@/lib/achievements';
 import { haptic } from '@/lib/haptics';
 import { dayKey, shiftKey } from '@/astro/time';
 import type { CheckInWindow } from '@/hooks/useCheckIn';
 import { useApp } from '@/store/app';
-import { POP } from '@/theme/motion';
+import { SNAP } from '@/theme/motion';
 import { colors, radius, space } from '@/theme/tokens';
 
 import { Button } from './Button';
@@ -39,31 +39,31 @@ export function CheckInCard({ window, tz, moonIllum, showStreak = true }: { wind
       haptic.success();
       setBurst((b) => b + 1);
       setShowXp(true);
-      flame.set(withSequence(withTiming(1.35, { duration: 140 }), withSpring(1, POP)));
+      flame.set(withSequence(withTiming(1.12, { duration: 120 }), withSpring(1, SNAP)));
     }
   };
 
   return (
     <Card
       title={showStreak ? 'Diário de luz' : 'Registrar momento'}
-      icon={showStreak ? 'journal' : 'eye'}
+      icon={showStreak ? 'flame' : 'eye'}
       onPress={showStreak ? () => router.navigate('/journal') : undefined}
       contentStyle={!showStreak && { marginTop: -space.md }}>
       <View style={[styles.row, !showStreak && { display: 'none' }]}>
-        <Animated.View style={[styles.flame, { backgroundColor: alive ? colors.accentSoft : 'rgba(255,255,255,0.08)' }, flameStyle]}>
-          <Icon name="flame" size={26} color={alive ? colors.accent : colors.textTertiary} />
+        <Animated.View style={[styles.streak, flameStyle]}>
+          <Text variant="metric" color={alive ? colors.text : colors.textSecondary}>
+            {streak}
+          </Text>
         </Animated.View>
         <View style={{ flex: 1 }}>
-          <Text variant="title3">
-            {streak} {streak === 1 ? 'dia seguido' : 'dias seguidos'}
-          </Text>
+          <Text variant="headline">{streak === 1 ? 'dia seguido' : 'dias seguidos'}</Text>
           <Text variant="footnote" color={colors.textSecondary}>
             {alive ? 'Sequência garantida hoje.' : streak > 0 ? 'Registre um momento hoje para manter.' : 'Registre o céu para começar uma sequência.'}
           </Text>
         </View>
         {showXp ? (
-          <Animated.View key={burst} entering={ZoomIn.springify().damping(12)} exiting={FadeOutUp} style={styles.xp}>
-            <Text variant="caption" color={colors.textOnAccent}>
+          <Animated.View key={burst} entering={FadeInDown.duration(220)} exiting={FadeOutUp.duration(180)} style={styles.xp}>
+            <Text variant="caption" color={colors.accent}>
               +20 XP
             </Text>
           </Animated.View>
@@ -72,9 +72,9 @@ export function CheckInCard({ window, tz, moonIllum, showStreak = true }: { wind
       {window.kind ? (
         window.done ? (
           <View style={styles.doneRow}>
-            <Icon name="check" size={16} color={colors.accent} />
-            <Text variant="subhead" color={colors.textSecondary}>
-              Momento registrado. Lindo céu.
+            <Icon name="check" size={14} color={colors.accent} />
+            <Text variant="footnote" color={colors.textSecondary}>
+              Momento registrado hoje.
             </Text>
           </View>
         ) : (
@@ -83,7 +83,7 @@ export function CheckInCard({ window, tz, moonIllum, showStreak = true }: { wind
               <Icon name={KIND_ICON[window.kind]} size={16} color={colors.accent} />
               <Text variant="headline">{window.prompt}</Text>
             </View>
-            <Button label="Registrar agora" icon="check" onPress={onCheckIn} size="medium" />
+            <Button label="Registrar agora" onPress={onCheckIn} size="medium" />
           </View>
         )
       ) : (
@@ -100,8 +100,8 @@ export function CheckInCard({ window, tz, moonIllum, showStreak = true }: { wind
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  flame: { width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center' },
-  xp: { backgroundColor: colors.accent, paddingHorizontal: space.xs, paddingVertical: 4, borderRadius: radius.pill },
+  streak: { minWidth: 36, alignItems: 'flex-start' },
+  xp: { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.accent, paddingHorizontal: space.xs, paddingVertical: space.xxs, borderRadius: radius.pill },
   promptRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
   doneRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginTop: space.md },
 });

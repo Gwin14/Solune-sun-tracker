@@ -27,7 +27,7 @@ export function Segmented({ options, index, onChange }: { options: string[]; ind
             onChange(i);
           }}
           style={styles.item}>
-          <Text variant="subhead" color={i === index ? colors.textOnAccent : colors.text}>
+          <Text variant="subhead" color={i === index ? colors.onPrimary : colors.text}>
             {o}
           </Text>
         </Pressable>
@@ -38,6 +38,6 @@ export function Segmented({ options, index, onChange }: { options: string[]; ind
 
 const styles = StyleSheet.create({
   track: { flexDirection: 'row', height: 36, borderRadius: radius.pill, backgroundColor: 'rgba(255,255,255,0.1)' },
-  thumb: { position: 'absolute', top: 2, bottom: 2, left: 0, borderRadius: radius.pill, backgroundColor: colors.accent },
+  thumb: { position: 'absolute', top: 2, bottom: 2, left: 0, borderRadius: radius.pill, backgroundColor: colors.primary },
   item: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

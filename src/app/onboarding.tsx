@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
-import { BackHandler, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { BackHandler, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, {
   Easing,
   FadeIn,
@@ -12,25 +12,25 @@ import Animated, {
   withDelay,
   withRepeat,
   withSequence,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 import { Button } from '@/components/Button';
-import { ProgressBar } from '@/components/charts';
+import { ProgressBar, ProgressRing } from '@/components/charts';
 import { Icon, type IconName } from '@/components/Icon';
 import { MoonGlyph } from '@/components/MoonGlyph';
 import { PressableScale } from '@/components/Pressable';
 import { SkyBackground } from '@/components/SkyBackground';
 import { SunGlyph } from '@/components/SunGlyph';
 import { Text } from '@/components/Text';
+import { Toggle } from '@/components/Toggle';
 import { haptic } from '@/lib/haptics';
 import { refreshCurrentLocation } from '@/lib/location';
 import { requestNotificationPermission, rescheduleNotifications } from '@/lib/notifications';
 import { DEFAULT_PLACE, useApp, type Interest, type NotificationPrefs } from '@/store/app';
-import { EASE_OUT, POP, SNAP } from '@/theme/motion';
+import { EASE_OUT } from '@/theme/motion';
 import { colors, radius, space } from '@/theme/tokens';
 
 const STEPS = ['welcome', 'sun', 'moon', 'ar', 'interests', 'location', 'notifications', 'done'] as const;
@@ -100,7 +100,7 @@ export default function Onboarding() {
             </PressableScale>
           ) : null}
         </View>
-        <View style={{ flex: 1 }}>{index > 0 ? <ProgressBar value={index / (STEPS.length - 1)} height={12} /> : null}</View>
+        <View style={{ flex: 1 }}>{index > 0 ? <ProgressBar value={index / (STEPS.length - 1)} height={4} /> : null}</View>
         <View style={{ width: 40 }} />
       </View>
 
@@ -162,7 +162,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
       <View style={[styles.art, { justifyContent: 'flex-end' }]}>
         <View style={{ width: horizonW, height: 260, alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden' }}>
           <Animated.View style={[{ position: 'absolute', bottom: 40 }, sunStyle]}>
-            <SunGlyph size={150} rays />
+            <SunGlyph size={112} />
           </Animated.View>
           <Svg width={horizonW} height={70} style={{ position: 'absolute', bottom: 0 }}>
             <Path d={`M0 40 Q ${horizonW * 0.25} 22 ${horizonW * 0.5} 34 T ${horizonW} 30 L ${horizonW} 70 L 0 70 Z`} fill="#0D1336" />
@@ -312,11 +312,14 @@ function Interests({ onNext }: { onNext: () => void }) {
         </Text>
       </View>
       <View style={styles.options}>
-        {INTERESTS.map((o, i) => (
-          <Animated.View key={o.key} entering={FadeIn.delay(80 + i * 60).duration(260)}>
-            <OptionTile label={o.label} icon={o.icon} selected={picked.includes(o.key)} onPress={() => toggle(o.key)} />
-          </Animated.View>
-        ))}
+        <Animated.View entering={FadeIn.delay(80).duration(260)} style={styles.group}>
+          {INTERESTS.map((o, i) => (
+            <View key={o.key}>
+              {i ? <View style={styles.groupDivider} /> : null}
+              <OptionRow label={o.label} icon={o.icon} selected={picked.includes(o.key)} onPress={() => toggle(o.key)} />
+            </View>
+          ))}
+        </Animated.View>
       </View>
       <Footer>
         <Button label="Continuar" onPress={save} />
@@ -325,51 +328,47 @@ function Interests({ onNext }: { onNext: () => void }) {
   );
 }
 
-function OptionTile({ label, icon, selected, onPress }: { label: string; icon: IconName; selected: boolean; onPress: () => void }) {
-  const depth = useSharedValue(0);
-  const pop = useSharedValue(selected ? 1 : 0);
+function OptionRow({ label, icon, selected, onPress }: { label: string; icon: IconName; selected: boolean; onPress: () => void }) {
+  const check = useSharedValue(selected ? 1 : 0);
   useEffect(() => {
-    pop.set(selected ? withSequence(withTiming(1.25, { duration: 100 }), withSpring(1, POP)) : withTiming(0, { duration: 140 }));
-  }, [selected, pop]);
-  const face = useAnimatedStyle(() => ({ transform: [{ translateY: depth.get() * 4 }] }));
-  const check = useAnimatedStyle(() => ({ opacity: Math.min(1, pop.get()), transform: [{ scale: pop.get() }] }));
+    check.set(withTiming(selected ? 1 : 0, { duration: 160, easing: EASE_OUT }));
+  }, [selected, check]);
+  const checkStyle = useAnimatedStyle(() => ({ opacity: check.get(), transform: [{ scale: 0.8 + check.get() * 0.2 }] }));
   return (
-    <PressableScale
+    <Pressable
       onPress={onPress}
-      onPressIn={() => depth.set(withTiming(1, { duration: 90 }))}
-      onPressOut={() => depth.set(withSpring(0, SNAP))}
-      scaleTo={1}
-      hapticOnPress={null}
       accessibilityRole="checkbox"
       accessibilityState={{ checked: selected }}
-      style={{ height: 66 }}>
-      <View style={[styles.optionLip, { backgroundColor: selected ? colors.accentDeep : 'rgba(255,255,255,0.08)' }]} />
-      <Animated.View style={[styles.option, selected && styles.optionOn, face]}>
-        <View style={[styles.optionIcon, { backgroundColor: selected ? colors.accent : 'rgba(255,255,255,0.1)' }]}>
-          <Icon name={icon} size={18} color={selected ? colors.textOnAccent : colors.text} />
-        </View>
-        <Text variant="headline" style={{ flex: 1 }}>
-          {label}
-        </Text>
-        <Animated.View style={[styles.checkDot, check]}>
-          <Icon name="check" size={13} color={colors.textOnAccent} weight="heavy" />
+      accessibilityLabel={label}
+      style={({ pressed }) => [styles.option, pressed && { backgroundColor: colors.fill }]}>
+      <Icon name={icon} size={18} color={selected ? colors.accent : colors.textSecondary} weight="regular" />
+      <Text variant="body" style={{ flex: 1 }}>
+        {label}
+      </Text>
+      <View style={[styles.checkRing, selected && { borderColor: colors.primary }]}>
+        <Animated.View style={[styles.checkFill, checkStyle]}>
+          <Icon name="check" size={12} color={colors.onPrimary} weight="bold" />
         </Animated.View>
-      </Animated.View>
-    </PressableScale>
+      </View>
+    </Pressable>
   );
 }
 
-function PulseIcon({ icon }: { icon: IconName }) {
-  const ring = useSharedValue(0);
+/** Quiet symbol medallion: a hairline ring with a slow breathing halo. */
+function Glyph({ icon, size = 120 }: { icon: IconName; size?: number }) {
+  const reduce = useReducedMotion();
+  const halo = useSharedValue(0);
   useEffect(() => {
-    ring.set(withRepeat(withTiming(1, { duration: 1800, easing: Easing.out(Easing.quad) }), -1, false));
-  }, [ring]);
-  const ringStyle = useAnimatedStyle(() => ({ opacity: 1 - ring.get(), transform: [{ scale: 1 + ring.get() * 0.9 }] }));
+    if (reduce) return;
+    halo.set(withRepeat(withTiming(1, { duration: 2600, easing: Easing.inOut(Easing.sin) }), -1, true));
+  }, [halo, reduce]);
+  const haloStyle = useAnimatedStyle(() => ({ opacity: 0.25 + halo.get() * 0.35, transform: [{ scale: 1 + halo.get() * 0.06 }] }));
   return (
-    <View style={{ width: 180, height: 180, alignItems: 'center', justifyContent: 'center' }}>
-      <Animated.View style={[styles.pulse, ringStyle]} />
-      <View style={styles.pulseCore}>
-        <Icon name={icon} size={54} color={colors.textOnAccent} weight="bold" />
+    <View style={{ width: size * 1.4, height: size * 1.4, alignItems: 'center', justifyContent: 'center' }}>
+      <Animated.View style={[styles.halo, { width: size * 1.4, height: size * 1.4, borderRadius: size * 0.7 }, haloStyle]} />
+      <View style={[styles.glyph, { width: size, height: size, borderRadius: size / 2 }]}>
+        <ProgressRing size={size} progress={1} color={colors.hairline} track="transparent" stroke={1} />
+        <Icon name={icon} size={size * 0.36} color={colors.accent} weight="light" />
       </View>
     </View>
   );
@@ -393,7 +392,7 @@ function LocationStep({ onNext }: { onNext: () => void }) {
   return (
     <View style={{ flex: 1 }}>
       <View style={styles.art}>
-        <PulseIcon icon="location" />
+        <Glyph icon="location" />
       </View>
       <View style={styles.copy}>
         <Text variant="title1" align="center">
@@ -405,20 +404,26 @@ function LocationStep({ onNext }: { onNext: () => void }) {
             : status === 'error'
               ? 'Não conseguimos sua posição agora. Tente de novo ou escolha depois.'
               : current
-                ? 'Pronto! Os horários agora são calculados para você.'
+                ? 'Os horários já são calculados para onde você está.'
                 : 'Sua localização torna cada horário preciso ao minuto. Ela fica só no seu aparelho.'}
         </Text>
       </View>
       <Footer>
-        <Button label={status === 'busy' ? 'Localizando…' : 'Usar minha localização'} icon="location" onPress={locate} disabled={status === 'busy' || !!current} />
-        <Button
-          label="Escolher depois"
-          variant="quiet"
-          onPress={() => {
-            if (!current) useApp.getState().selectPlace('current');
-            onNext();
-          }}
-        />
+        {current ? (
+          <Button label="Continuar" onPress={onNext} />
+        ) : (
+          <Button label="Usar minha localização" loading={status === 'busy'} onPress={locate} />
+        )}
+        {current ? null : (
+          <Button
+            label="Escolher depois"
+            variant="quiet"
+            onPress={() => {
+              useApp.getState().selectPlace('current');
+              onNext();
+            }}
+          />
+        )}
       </Footer>
     </View>
   );
@@ -444,38 +449,41 @@ function NotificationsStep({ onNext }: { onNext: () => void }) {
   ];
   return (
     <View style={{ flex: 1 }}>
-      <View style={[styles.art, { flex: 0.9 }]}>
-        <PulseIcon icon="bell" />
+      <View style={[styles.art, { flex: 0.85 }]}>
+        <Glyph icon="bell" size={88} />
       </View>
       <View style={styles.copy}>
         <Text variant="title1" align="center">
           Não perca a melhor luz
         </Text>
         <Text variant="body" color={colors.textSecondary} align="center">
-          Avisamos 15 minutos antes. Toque para ajustar.
+          Avisamos 15 minutos antes. Escolha o que importa para você.
         </Text>
       </View>
-      <View style={styles.chips}>
-        {items.map((it) => {
-          const on = !!prefs[it.key];
-          return (
-            <PressableScale
-              key={it.key}
-              onPress={() => useApp.getState().setNotification(it.key, !on as never)}
-              hapticOnPress="tick"
-              accessibilityRole="switch"
-              accessibilityState={{ checked: on }}
-              style={[styles.chip, on && styles.chipOn]}>
-              <Icon name={it.icon} size={14} color={on ? colors.textOnAccent : colors.text} />
-              <Text variant="subhead" color={on ? colors.textOnAccent : colors.text}>
-                {it.label}
-              </Text>
-            </PressableScale>
-          );
-        })}
+      <View style={{ paddingHorizontal: space.md, paddingBottom: space.lg }}>
+        <View style={styles.group}>
+          {items.map((it, i) => (
+            <View key={it.key}>
+              {i ? <View style={styles.groupDivider} /> : null}
+              <View style={[styles.option, { minHeight: 50 }]}>
+                <Icon name={it.icon} size={17} color={colors.textSecondary} weight="regular" />
+                <Text variant="body" style={{ flex: 1 }}>
+                  {it.label}
+                </Text>
+                <Toggle
+                  value={!!prefs[it.key]}
+                  onValueChange={(v) => {
+                    haptic.tick();
+                    useApp.getState().setNotification(it.key, v as never);
+                  }}
+                />
+              </View>
+            </View>
+          ))}
+        </View>
       </View>
       <Footer>
-        <Button label="Ativar lembretes" icon="bell" onPress={enable} />
+        <Button label="Ativar lembretes" onPress={enable} />
         <Button label="Agora não" variant="quiet" onPress={onNext} />
       </Footer>
     </View>
@@ -484,12 +492,12 @@ function NotificationsStep({ onNext }: { onNext: () => void }) {
 
 function Done() {
   const place = useApp((s) => s.current) ?? DEFAULT_PLACE;
-  const badge = useSharedValue(0);
+  const ring = useSharedValue(0);
   useEffect(() => {
     haptic.success();
-    badge.set(withDelay(200, withSpring(1, POP)));
-  }, [badge]);
-  const style = useAnimatedStyle(() => ({ transform: [{ scale: badge.get() }, { rotate: `${(1 - badge.get()) * -60}deg` }] }));
+    ring.set(withDelay(200, withTiming(1, { duration: 700, easing: EASE_OUT })));
+  }, [ring]);
+  const style = useAnimatedStyle(() => ({ opacity: ring.get(), transform: [{ scale: 0.92 + ring.get() * 0.08 }] }));
   const finish = () => {
     const s = useApp.getState();
     s.completeOnboarding();
@@ -499,22 +507,16 @@ function Done() {
   return (
     <View style={{ flex: 1 }}>
       <View style={styles.art}>
-        <Animated.View style={[styles.doneBadge, style]}>
-          <Icon name="sunrise" size={64} color={colors.textOnAccent} weight="bold" />
+        <Animated.View style={style}>
+          <Glyph icon="sunrise" />
         </Animated.View>
-        <View style={styles.xpPill}>
-          <Icon name="sparkle" size={13} color={colors.accent} />
-          <Text variant="subhead" color={colors.accent}>
-            Conquista desbloqueada: Primeira luz
-          </Text>
-        </View>
       </View>
       <View style={styles.copy}>
-        <Text variant="title1" align="center">
-          Seu céu está pronto
+        <Text variant="largeTitle" align="center">
+          Tudo pronto
         </Text>
         <Text variant="body" color={colors.textSecondary} align="center">
-          Registre nasceres, pores do sol e luas para manter sua sequência e subir de nível em {place.name}.
+          Seu céu em {place.name} já está calculado. Registre nasceres, pores do sol e luas para formar uma sequência.
         </Text>
       </View>
       <Footer>
@@ -527,7 +529,7 @@ function Done() {
 const styles = StyleSheet.create({
   scrim: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '55%' },
   top: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, minHeight: 52 },
-  back: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.12)' },
+  back: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.fill },
   art: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   artCard: {
     padding: space.md,
@@ -551,67 +553,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   arLabel: { position: 'absolute', backgroundColor: 'rgba(0,0,0,0.45)', paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill },
-  options: { flex: 1, paddingHorizontal: space.md, gap: space.sm, justifyContent: 'center' },
-  optionLip: { position: 'absolute', left: 0, right: 0, top: 4, height: 62, borderRadius: radius.card, borderCurve: 'continuous' },
-  option: {
-    height: 62,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    paddingHorizontal: space.md,
-    borderRadius: radius.card,
-    borderCurve: 'continuous',
-    backgroundColor: 'rgba(22,32,80,0.85)',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  optionOn: { borderColor: colors.accent, backgroundColor: '#2C2F6E' },
-  optionIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  checkDot: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' },
-  pulse: { position: 'absolute', width: 120, height: 120, borderRadius: 60, backgroundColor: colors.accent },
-  pulseCore: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 4,
-    borderColor: 'rgba(255,240,210,0.6)',
-    boxShadow: `0 6px 0 ${colors.accentDeep}`,
-  },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: space.xs, paddingHorizontal: space.md, paddingBottom: space.lg },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: space.sm,
-    height: 38,
-    borderRadius: radius.pill,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  chipOn: { backgroundColor: colors.accent, borderColor: colors.accent },
-  doneBadge: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 5,
-    borderColor: 'rgba(255,240,210,0.6)',
-    boxShadow: `0 8px 0 ${colors.accentDeep}, 0 0 60px rgba(255,182,72,0.6)`,
-  },
-  xpPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: space.xl,
-    paddingHorizontal: space.sm,
-    paddingVertical: 6,
-    borderRadius: radius.pill,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-  },
+  options: { flex: 1, paddingHorizontal: space.md, justifyContent: 'center' },
+  group: { borderRadius: radius.card, borderCurve: 'continuous', overflow: 'hidden', backgroundColor: 'rgba(8,12,34,0.45)', borderWidth: StyleSheet.hairlineWidth, borderColor: colors.glassBorder },
+  groupDivider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.hairline, marginLeft: 50 },
+  option: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.md, minHeight: 56 },
+  checkRing: { width: 24, height: 24, borderRadius: 12, borderWidth: 1.5, borderColor: colors.textTertiary, alignItems: 'center', justifyContent: 'center' },
+  checkFill: { position: 'absolute', width: 24, height: 24, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  halo: { position: 'absolute', backgroundColor: colors.accentSoft },
+  glyph: { alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(8,12,34,0.35)' },
 });

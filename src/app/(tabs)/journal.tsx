@@ -6,12 +6,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { capitalize, formatDate, formatTime, WEEKDAYS_LETTER } from '@/astro/format';
 import { dayKey, shiftKey } from '@/astro/time';
 import { Card, Divider } from '@/components/Card';
-import { ProgressBar } from '@/components/charts';
+import { ProgressBar, ProgressRing } from '@/components/charts';
 import { CheckInCard } from '@/components/CheckInCard';
 import { Icon } from '@/components/Icon';
 import { Reveal, ScreenTitle } from '@/components/Screen';
 import { SkyBackground } from '@/components/SkyBackground';
-import { useTabBarSpace } from '@/components/TabBar';
+import { useTabBarSpace } from '@/components/TabSpace';
 import { Text } from '@/components/Text';
 import { TopFade } from '@/components/TopFade';
 import { useLivePositions, useNow, usePlace, useSunToday } from '@/hooks/useAstro';
@@ -52,18 +52,19 @@ export default function JournalScreen() {
         <ScreenTitle title="Diário" subtitle="Seus momentos com o céu" />
 
         <Reveal index={0}>
-          <Card>
+          <Card title="Sequência" icon="flame" iconColor={keys.has(todayKey) ? colors.accent : colors.textSecondary}>
             <View style={styles.streakRow}>
-              <View style={[styles.flame, { backgroundColor: keys.has(todayKey) ? colors.accentSoft : 'rgba(255,255,255,0.08)' }]}>
-                <Icon name="flame" size={40} color={keys.has(todayKey) ? colors.accent : colors.textTertiary} />
+              <View style={styles.streakNumber}>
+                <Text variant="hero">{ctx.streak}</Text>
+                <Text variant="title3" color={colors.textSecondary} style={{ marginBottom: 10 }}>
+                  {ctx.streak === 1 ? 'dia' : 'dias'}
+                </Text>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text variant="hero" style={{ lineHeight: 58 }}>
-                  {ctx.streak}
+              <View style={{ alignItems: 'flex-end', gap: 2 }}>
+                <Text variant="footnote" color={colors.textSecondary}>
+                  Recorde
                 </Text>
-                <Text variant="subhead" color={colors.textSecondary}>
-                  {ctx.streak === 1 ? 'dia seguido' : 'dias seguidos'} · recorde {ctx.bestStreak}
-                </Text>
+                <Text variant="metricSmall">{ctx.bestStreak}</Text>
               </View>
             </View>
             <View style={styles.week}>
@@ -74,12 +75,10 @@ export default function JournalScreen() {
                 const wd = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
                 return (
                   <View key={k} style={styles.weekDay}>
+                    <View style={[styles.weekDot, done && styles.weekDotDone, isToday && !done && styles.weekDotToday]} />
                     <Text variant="caption" color={isToday ? colors.text : colors.textTertiary}>
                       {WEEKDAYS_LETTER[wd]}
                     </Text>
-                    <View style={[styles.weekDot, done && styles.weekDotDone, isToday && !done && styles.weekDotToday]}>
-                      {done ? <Icon name="check" size={14} color={colors.textOnAccent} weight="heavy" /> : null}
-                    </View>
                   </View>
                 );
               })}
@@ -88,17 +87,13 @@ export default function JournalScreen() {
         </Reveal>
 
         <Reveal index={1}>
-          <Card title={`Nível ${level.level} · ${level.title}`} icon="trophy" iconColor={colors.accent}>
-            <View style={{ gap: space.xs }}>
+          <Card title={`Nível ${level.level}`} icon="trophy" accessory={<Text variant="footnote" color={colors.textSecondary}>{state.xp} XP</Text>}>
+            <View style={{ gap: space.sm }}>
+              <Text variant="title3">{level.title}</Text>
               <ProgressBar value={level.progress} delay={200} />
-              <View style={styles.between}>
-                <Text variant="footnote" color={colors.textSecondary}>
-                  {state.xp} XP
-                </Text>
-                <Text variant="footnote" color={colors.textSecondary}>
-                  faltam {level.toNext} XP
-                </Text>
-              </View>
+              <Text variant="footnote" color={colors.textTertiary}>
+                Faltam {level.toNext} XP para o próximo nível
+              </Text>
             </View>
           </Card>
         </Reveal>
@@ -108,28 +103,23 @@ export default function JournalScreen() {
         </Reveal>
 
         <Reveal index={3}>
-          <Card title="Conquistas" icon="sparkle" accessory={<Text variant="caption" color={colors.textTertiary}>{Object.keys(state.badges).length}/{BADGES.length}</Text>}>
+          <Card title="Conquistas" icon="trophy" accessory={<Text variant="caption" color={colors.textTertiary}>{Object.keys(state.badges).length}/{BADGES.length}</Text>}>
             <View style={styles.badges}>
               {BADGES.map((b) => {
                 const unlocked = !!state.badges[b.id];
                 const p = b.progress(ctx);
                 return (
-                  <View key={b.id} style={[styles.badge, { width: badgeSize }]} accessibilityLabel={`${b.title}. ${b.description}${unlocked ? '' : ' Bloqueada.'}`}>
-                    <View style={[styles.badgeIcon, unlocked ? styles.badgeOn : styles.badgeOff]}>
-                      <Icon name={unlocked ? b.icon : 'lock'} size={unlocked ? 26 : 18} color={unlocked ? colors.textOnAccent : colors.textTertiary} />
+                  <View key={b.id} style={[styles.badge, { width: badgeSize }]} accessibilityLabel={`${b.title}. ${b.description}${unlocked ? '' : ` ${Math.round(p * 100)}% concluída.`}`}>
+                    <View style={[styles.medal, unlocked && styles.medalOn]}>
+                      <ProgressRing size={60} progress={unlocked ? 1 : p} color={unlocked ? colors.accent : colors.textSecondary} />
+                      <Icon name={b.icon} size={22} color={unlocked ? colors.accent : colors.textTertiary} weight="regular" />
                     </View>
-                    <Text variant="subhead" align="center" numberOfLines={1} color={unlocked ? colors.text : colors.textSecondary}>
+                    <Text variant="footnote" align="center" numberOfLines={1} color={unlocked ? colors.text : colors.textSecondary} style={{ fontWeight: '600' }}>
                       {b.title}
                     </Text>
-                    {unlocked ? (
-                      <Text variant="caption" align="center" color={colors.textTertiary} numberOfLines={2}>
-                        {b.description}
-                      </Text>
-                    ) : (
-                      <View style={{ width: '80%' }}>
-                        <ProgressBar value={p} height={6} color={colors.textSecondary} />
-                      </View>
-                    )}
+                    <Text variant="caption" align="center" color={colors.textTertiary} numberOfLines={2}>
+                      {unlocked ? b.description : `${Math.round(p * 100)}%`}
+                    </Text>
                   </View>
                 );
               })}
@@ -152,7 +142,7 @@ export default function JournalScreen() {
                 <View key={c.at}>
                   {i ? <Divider /> : null}
                   <View style={styles.histRow}>
-                    <Icon name={KIND_ICON[c.kind]} size={18} color={c.kind === 'moon' ? colors.moon : colors.accent} />
+                    <Icon name={KIND_ICON[c.kind]} size={16} color={c.kind === 'moon' ? colors.moon : colors.accent} />
                     <Text variant="callout" style={{ flex: 1 }}>
                       {KIND_LABEL[c.kind]}
                     </Text>
@@ -173,18 +163,16 @@ export default function JournalScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.ink },
-  streakRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
-  flame: { width: 76, height: 76, borderRadius: 38, alignItems: 'center', justifyContent: 'center' },
-  week: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.lg },
-  weekDay: { alignItems: 'center', gap: 6 },
-  weekDot: { width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
-  weekDotDone: { backgroundColor: colors.accent, boxShadow: `0 3px 0 ${colors.accentDeep}` },
-  weekDotToday: { borderWidth: 2, borderColor: colors.accent, borderStyle: 'dashed' },
-  between: { flexDirection: 'row', justifyContent: 'space-between' },
-  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, rowGap: space.lg, paddingTop: space.xs },
-  badge: { alignItems: 'center', gap: 6 },
-  badgeIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
-  badgeOn: { backgroundColor: colors.accent, boxShadow: `0 4px 0 ${colors.accentDeep}`, borderWidth: 3, borderColor: 'rgba(255,240,210,0.5)' },
-  badgeOff: { backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 2, borderColor: 'rgba(255,255,255,0.12)' },
+  streakRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
+  streakNumber: { flexDirection: 'row', alignItems: 'flex-end', gap: space.xs },
+  week: { flexDirection: 'row', justifyContent: 'space-between', marginTop: space.md, paddingTop: space.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline },
+  weekDay: { alignItems: 'center', gap: space.xs, width: 28 },
+  weekDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.fillStrong },
+  weekDotDone: { backgroundColor: colors.accent },
+  weekDotToday: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: colors.accent },
+  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, rowGap: space.xl, paddingTop: space.xs },
+  badge: { alignItems: 'center', gap: space.xxs },
+  medal: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center', marginBottom: space.xxs },
+  medalOn: { backgroundColor: colors.accentSoft },
   histRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: space.sm },
 });

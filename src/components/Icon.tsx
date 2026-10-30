@@ -25,7 +25,7 @@ const ICONS = {
   flame: { ios: 'flame.fill', android: 'local_fire_department', web: 'local_fire_department' },
   settings: { ios: 'gearshape.fill', android: 'settings', web: 'settings' },
   location: { ios: 'location.fill', android: 'near_me', web: 'near_me' },
-  pin: { ios: 'mappin.circle.fill', android: 'location_on', web: 'location_on' },
+  pin: { ios: 'mappin', android: 'location_on', web: 'location_on' },
   globe: { ios: 'globe.americas.fill', android: 'public', web: 'public' },
   bell: { ios: 'bell.fill', android: 'notifications', web: 'notifications' },
   chevronRight: { ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' },

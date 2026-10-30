@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import type { ReactNode } from 'react';
-import { Alert, Linking, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Alert, Linking, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Divider } from '@/components/Card';
@@ -8,6 +8,7 @@ import { Icon, type IconName } from '@/components/Icon';
 import { PressableScale } from '@/components/Pressable';
 import { Segmented } from '@/components/Segmented';
 import { Text } from '@/components/Text';
+import { Toggle } from '@/components/Toggle';
 import { usePlace } from '@/hooks/useAstro';
 import { haptic } from '@/lib/haptics';
 import { rescheduleNotifications, requestNotificationPermission } from '@/lib/notifications';
@@ -57,39 +58,39 @@ export default function SettingsScreen() {
 
         <Group title="Exibição">
           <Row icon="clock" label="Formato 24 horas">
-            <Switch value={s.use24h} onValueChange={(v) => { haptic.tick(); s.setUse24h(v); }} trackColor={{ true: colors.accent }} />
+            <Toggle value={s.use24h} onValueChange={(v) => { haptic.tick(); s.setUse24h(v); }} />
           </Row>
           <Divider style={styles.inset} />
           <Row icon="hand" label="Vibração ao interagir">
-            <Switch value={s.haptics} onValueChange={(v) => { s.setHaptics(v); haptic.tick(); }} trackColor={{ true: colors.accent }} />
+            <Toggle value={s.haptics} onValueChange={(v) => { s.setHaptics(v); haptic.tick(); }} />
           </Row>
         </Group>
 
         <Group title="Lembretes" footer="Os lembretes são calculados para os próximos 7 dias no local selecionado.">
           <Row icon="bell" label="Ativar lembretes">
-            <Switch value={s.notificationsEnabled} onValueChange={toggleNotifications} trackColor={{ true: colors.accent }} />
+            <Toggle value={s.notificationsEnabled} onValueChange={toggleNotifications} />
           </Row>
           {s.notificationsEnabled ? (
             <>
               <Divider style={styles.inset} />
               <Row icon="sunrise" label="Nascer do sol">
-                <Switch value={s.notifications.sunrise} onValueChange={(v) => setPref('sunrise', v)} trackColor={{ true: colors.accent }} />
+                <Toggle value={s.notifications.sunrise} onValueChange={(v) => setPref('sunrise', v)} />
               </Row>
               <Divider style={styles.inset} />
               <Row icon="sunset" label="Pôr do sol">
-                <Switch value={s.notifications.sunset} onValueChange={(v) => setPref('sunset', v)} trackColor={{ true: colors.accent }} />
+                <Toggle value={s.notifications.sunset} onValueChange={(v) => setPref('sunset', v)} />
               </Row>
               <Divider style={styles.inset} />
               <Row icon="sparkle" label="Hora dourada">
-                <Switch value={s.notifications.golden} onValueChange={(v) => setPref('golden', v)} trackColor={{ true: colors.accent }} />
+                <Toggle value={s.notifications.golden} onValueChange={(v) => setPref('golden', v)} />
               </Row>
               <Divider style={styles.inset} />
               <Row icon="moonFull" label="Lua cheia">
-                <Switch value={s.notifications.fullMoon} onValueChange={(v) => setPref('fullMoon', v)} trackColor={{ true: colors.accent }} />
+                <Toggle value={s.notifications.fullMoon} onValueChange={(v) => setPref('fullMoon', v)} />
               </Row>
               <Divider style={styles.inset} />
               <Row icon="stars" label="Lua nova">
-                <Switch value={s.notifications.newMoon} onValueChange={(v) => setPref('newMoon', v)} trackColor={{ true: colors.accent }} />
+                <Toggle value={s.notifications.newMoon} onValueChange={(v) => setPref('newMoon', v)} />
               </Row>
               <Divider style={styles.inset} />
               <View style={{ padding: space.md, gap: space.xs }}>
@@ -139,7 +140,7 @@ function Row({ icon, label, detail, children, onPress, chevron }: { icon: IconNa
   const body = (
     <View style={styles.row}>
       <View style={styles.rowIcon}>
-        <Icon name={icon} size={16} color={colors.accent} />
+        <Icon name={icon} size={15} color={colors.textSecondary} />
       </View>
       <View style={{ flex: 1 }}>
         <Text variant="body">{label}</Text>
@@ -166,6 +167,6 @@ const styles = StyleSheet.create({
   done: { paddingHorizontal: space.xs, height: 44, justifyContent: 'center' },
   group: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: radius.card, borderCurve: 'continuous', overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, minHeight: 56, paddingVertical: space.xs },
-  rowIcon: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.accentSoft, alignItems: 'center', justifyContent: 'center' },
+  rowIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.fill, alignItems: 'center', justifyContent: 'center' },
   inset: { marginLeft: 58 },
 });

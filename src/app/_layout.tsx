@@ -1,13 +1,3 @@
-import {
-  Manrope_200ExtraLight,
-  Manrope_300Light,
-  Manrope_400Regular,
-  Manrope_500Medium,
-  Manrope_600SemiBold,
-  Manrope_700Bold,
-  Manrope_800ExtraBold,
-  useFonts,
-} from '@expo-google-fonts/manrope';
 import { DarkTheme, Stack, ThemeProvider, router, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -50,18 +40,9 @@ function CelebrationWatcher() {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
-    Manrope_200ExtraLight,
-    Manrope_300Light,
-    Manrope_400Regular,
-    Manrope_500Medium,
-    Manrope_600SemiBold,
-    Manrope_700Bold,
-    Manrope_800ExtraBold,
-  });
   const hydrated = useHydrated();
   const hasOnboarded = useApp((s) => s.hasOnboarded);
-  const ready = fontsLoaded && hydrated;
+  const ready = hydrated;
 
   useEffect(() => {
     if (!ready) return;
@@ -80,7 +61,6 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ink } }}>
           <Stack.Protected guard={hasOnboarded}>
             <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="ar" options={{ presentation: 'fullScreenModal', animation: 'fade' }} />
             <Stack.Screen name="settings" options={{ presentation: 'modal', contentStyle: { backgroundColor: colors.inkSheet } }} />
             <Stack.Screen
               name="locations"

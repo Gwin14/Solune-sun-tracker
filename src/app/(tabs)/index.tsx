@@ -16,7 +16,7 @@ import { PressableScale } from '@/components/Pressable';
 import { IconButton, Metric, Reveal } from '@/components/Screen';
 import { SkyBackground } from '@/components/SkyBackground';
 import { altitudeAt, SunArc, type ArcEvent } from '@/components/SunArc';
-import { useTabBarSpace } from '@/components/TabBar';
+import { useTabBarSpace } from '@/components/TabSpace';
 import { Text } from '@/components/Text';
 import { TopFade } from '@/components/TopFade';
 import { minuteOfDay, useLivePositions, useNow, usePlace, useSunToday, useYearDaylight } from '@/hooks/useAstro';

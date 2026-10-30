@@ -15,7 +15,7 @@ import { haptic } from '@/lib/haptics';
 import { geocodePlaces, refreshCurrentLocation } from '@/lib/location';
 import { rescheduleNotifications } from '@/lib/notifications';
 import { DEFAULT_PLACE, useApp, type SavedPlace } from '@/store/app';
-import { colors, font, radius, space } from '@/theme/tokens';
+import { colors, weight, radius, space } from '@/theme/tokens';
 
 export default function LocationsScreen() {
   const current = useApp((s) => s.current);
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
-  search: { flex: 1, color: colors.text, fontFamily: font.medium, fontSize: 16, height: '100%' },
+  search: { flex: 1, color: colors.text, fontWeight: weight.medium, fontSize: 16, height: '100%' },
   group: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: radius.card, borderCurve: 'continuous', overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, minHeight: 60, paddingVertical: space.xs },
   badge: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.08)' },

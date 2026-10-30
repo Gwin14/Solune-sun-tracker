@@ -15,7 +15,7 @@ import { MoonGlyph } from '@/components/MoonGlyph';
 import { PressableScale } from '@/components/Pressable';
 import { Metric, Reveal, ScreenTitle } from '@/components/Screen';
 import { SkyBackground } from '@/components/SkyBackground';
-import { useTabBarSpace } from '@/components/TabBar';
+import { useTabBarSpace } from '@/components/TabSpace';
 import { Text } from '@/components/Text';
 import { TopFade } from '@/components/TopFade';
 import { useNow, usePlace, useQuarters } from '@/hooks/useAstro';
@@ -108,7 +108,7 @@ export default function MoonScreen() {
             <DayDots offset={offset} />
             {offset !== 0 ? (
               <PressableScale onPress={resetDay} style={styles.todayPill} hapticOnPress="soft">
-                <Text variant="caption" color={colors.textOnAccent}>
+                <Text variant="label" color={colors.onPrimary}>
                   Voltar para hoje
                 </Text>
               </PressableScale>
@@ -210,7 +210,7 @@ function DayDots({ offset }: { offset: number }) {
       {Array.from({ length: 9 }, (_, i) => {
         const d = i - 4;
         const active = Math.max(-4, Math.min(4, offset)) === d;
-        return <View key={i} style={[styles.dot, active && { backgroundColor: colors.accent, width: 18 }]} />;
+        return <View key={i} style={[styles.dot, active && { backgroundColor: colors.text, width: 16 }]} />;
       })}
     </View>
   );
@@ -246,7 +246,7 @@ function MoonCalendar({ now, tz, southern }: { now: Date; tz?: string; southern:
             {c ? (
               <>
                 <MoonGlyph size={Math.min(26, cell - 14)} angle={c.angle} southern={southern} glow={false} earthshine={false} />
-                <Text variant="caption" color={c.day === w.day ? colors.accent : colors.textSecondary} style={c.day === w.day ? { fontFamily: 'Manrope_800ExtraBold' } : undefined}>
+                <Text variant="caption" color={c.day === w.day ? colors.accent : colors.textSecondary} style={c.day === w.day ? { fontWeight: '700' } : undefined}>
                   {c.day}
                 </Text>
               </>
@@ -267,7 +267,7 @@ const styles = StyleSheet.create({
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginTop: space.md },
   dots: { flexDirection: 'row', gap: 5, marginTop: space.md, alignItems: 'center' },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.25)' },
-  todayPill: { marginTop: space.sm, backgroundColor: colors.accent, paddingHorizontal: space.sm, paddingVertical: 6, borderRadius: radius.pill },
+  todayPill: { marginTop: space.sm, backgroundColor: colors.primary, paddingHorizontal: space.md, paddingVertical: 6, borderRadius: radius.pill },
   weekHeader: { flexDirection: 'row', marginBottom: space.xs },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: { alignItems: 'center', gap: 3, paddingVertical: 6, minHeight: 48 },

@@ -25,15 +25,15 @@ export function Card({ title, icon, iconColor = colors.textSecondary, accessory,
   const body = (
     <View style={[styles.card, style]}>
       {process.env.EXPO_OS === 'android' ? (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(12,18,48,0.42)' }]} />
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(8,12,34,0.5)' }]} />
       ) : (
-        <BlurView intensity={28} tint="dark" style={StyleSheet.absoluteFill} />
+        <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
       )}
       <View style={[StyleSheet.absoluteFill, styles.tint]} />
       {title ? (
         <View style={styles.header}>
-          {icon ? <Icon name={icon} size={15} color={iconColor} /> : null}
-          <Text variant="subhead" color={colors.textSecondary} style={{ flex: 1 }}>
+          {icon ? <Icon name={icon} size={13} color={iconColor} /> : null}
+          <Text variant="label" color={colors.textSecondary} style={{ flex: 1 }}>
             {title}
           </Text>
           {accessory}
@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.glassBorder,
   },
-  tint: { backgroundColor: 'rgba(14,20,56,0.26)' },
+  tint: { backgroundColor: 'rgba(6,10,30,0.22)' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

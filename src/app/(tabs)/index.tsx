@@ -20,6 +20,7 @@ import { altitudeAt, SunArc, type ArcEvent } from '@/components/SunArc';
 import { useTabBarSpace } from '@/components/TabSpace';
 import { Text } from '@/components/Text';
 import { TopFade } from '@/components/TopFade';
+import { TrackMoment } from '@/components/TrackMoment';
 import { minuteOfDay, useLivePositions, useNow, usePlace, useSunToday, useYearDaylight } from '@/hooks/useAstro';
 import { useCheckInWindow } from '@/hooks/useCheckIn';
 import { useApp } from '@/store/app';
@@ -171,7 +172,7 @@ export default function TodayScreen() {
           </Reveal>
 
           <Reveal index={3}>
-            <Card title="Horas mágicas" icon="sparkle">
+            <Card title="Horas mágicas" icon="sparkle" accessory={<TrackMoment kind="golden" />}>
               <View style={{ gap: space.sm }}>
                 <MagicRow label="Manhã" blue={today.blueMorning} golden={today.goldenMorning} order="blueFirst" t={t} />
                 <Divider />

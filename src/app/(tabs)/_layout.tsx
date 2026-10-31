@@ -1,9 +1,12 @@
 import { NativeTabs } from 'expo-router/native-tabs';
 
+import { PlatformBridges } from '@/platform/Bridges';
 import { colors } from '@/theme/tokens';
 
 export default function TabsLayout() {
   return (
+    <>
+    <PlatformBridges />
     <NativeTabs tintColor={colors.accent} labelStyle={{ color: colors.textSecondary }} iconColor={{ default: colors.textSecondary, selected: colors.accent }}>
       <NativeTabs.Trigger name="index" disableAutomaticContentInsets>
         <NativeTabs.Trigger.Icon sf={{ default: 'sun.max', selected: 'sun.max.fill' }} md="wb_sunny" />
@@ -26,5 +29,6 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Label>Diário</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
     </NativeTabs>
+    </>
   );
 }

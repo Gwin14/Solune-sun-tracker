@@ -9,11 +9,13 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "icon": "./assets/images/icon.png",
-      "bundleIdentifier": "com.solune.app",
+      "bundleIdentifier": "com.fabiosantos.solune",
       "supportsTablet": false,
       "infoPlist": {
-        "UIViewControllerBasedStatusBarAppearance": true
-      }
+        "UIViewControllerBasedStatusBarAppearance": true,
+        "CFBundleDevelopmentRegion": "pt-BR"
+      },
+      "appleTeamId": "77MXYLFJ7J"
     },
     "android": {
       "adaptiveIcon": {
@@ -21,7 +23,7 @@
         "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.solune.app"
+      "package": "com.fabiosantos.solune"
     },
     "web": {
       "output": "server",
@@ -63,11 +65,125 @@
           "color": "#FFB648"
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-widgets",
+        {
+          "groupIdentifier": "group.com.fabiosantos.solune",
+          "widgets": [
+            {
+              "name": "SunWidget",
+              "displayName": "Sol",
+              "description": "O próximo nascer ou pôr do sol e a curva do dia.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "systemLarge"
+                ]
+              },
+              "android": null
+            },
+            {
+              "name": "GoldenWidget",
+              "displayName": "Horas mágicas",
+              "description": "A próxima hora dourada e a hora azul, com contagem.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium"
+                ]
+              },
+              "android": null
+            },
+            {
+              "name": "MoonWidget",
+              "displayName": "Lua",
+              "description": "A fase de hoje, a iluminação e a próxima lua cheia.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium"
+                ]
+              },
+              "android": null
+            },
+            {
+              "name": "LockWidget",
+              "displayName": "Céu no bloqueio",
+              "description": "Sol, lua ou hora dourada na Tela Bloqueada.",
+              "ios": {
+                "supportedFamilies": [
+                  "accessoryCircular",
+                  "accessoryRectangular",
+                  "accessoryInline"
+                ],
+                "configuration": {
+                  "title": "Céu no bloqueio",
+                  "description": "Escolha o que acompanhar.",
+                  "parameters": {
+                    "focus": {
+                      "title": "Mostrar",
+                      "type": "enum",
+                      "values": [
+                        {
+                          "name": "Sol",
+                          "value": "sun"
+                        },
+                        {
+                          "name": "Lua",
+                          "value": "moon"
+                        },
+                        {
+                          "name": "Hora dourada",
+                          "value": "golden"
+                        }
+                      ],
+                      "default": "sun"
+                    }
+                  }
+                }
+              },
+              "android": null
+            },
+            {
+              "name": "StreakWidget",
+              "displayName": "Sequência",
+              "description": "Seus dias seguidos olhando o céu.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium"
+                ]
+              },
+              "android": null
+            },
+            {
+              "name": "EventWidget",
+              "displayName": "Próximo evento",
+              "description": "Eclipses, superluas, solstícios e chuvas de meteoros.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium"
+                ]
+              },
+              "android": null
+            }
+          ]
+        }
+      ],
+      "expo-app-intents",
+      "expo-quick-actions"
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
+      "reactCompiler": true,
+      "inlineModules": {
+        "watchedDirectories": [
+          "app-intents"
+        ]
+      }
     },
     "backgroundColor": "#060A1C"
   }

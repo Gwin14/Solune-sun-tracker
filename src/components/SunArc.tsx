@@ -1,22 +1,28 @@
-import { memo, useMemo, useState } from 'react';
+import { LinearGradient as ViewGradient } from 'expo-linear-gradient';
+import { useIsFocused } from 'expo-router';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector, useCompetingGestures, usePanGesture, useTapGesture } from 'react-native-gesture-handler';
 import Animated, {
+  useAnimatedProps,
   useAnimatedReaction,
   useAnimatedStyle,
   useDerivedValue,
+  useReducedMotion,
   useSharedValue,
+  withDelay,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import Svg, { ClipPath, Defs, G, Line, LinearGradient, Path, Rect, Stop, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, ClipPath, Defs, G, Line, LinearGradient, Path, Rect, Stop, Text as SvgText } from 'react-native-svg';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { formatMinuteOfDay } from '@/astro/format';
 import { PATH_STEP_MIN } from '@/astro/sun';
 import { haptic } from '@/lib/haptics';
+import { useLaunch } from '@/store/launch';
 import { EASE_OUT } from '@/theme/motion';
-import { colors, weight, radius, space } from '@/theme/tokens';
+import { colors, radius, space, weight } from '@/theme/tokens';
 
 import { AnimatedText } from './AnimatedText';
 import { MoonGlyph } from './MoonGlyph';
@@ -24,11 +30,14 @@ import { PressableScale } from './Pressable';
 import { SunGlyph } from './SunGlyph';
 import { Text } from './Text';
 
-export const ARC_HEIGHT = 178;
-const PAD_TOP = 18;
-const HORIZON = 0.64;
+const AnimatedRect = Animated.createAnimatedComponent(Rect);
 
-export type ArcEvent = { minute: number; label: string };
+export const ARC_HEIGHT = 196;
+const PAD_TOP = 22;
+const HORIZON = 0.62;
+const LABEL_BAND = 30;
+
+export type ArcEvent = { minute: number; label: string; kind: 'rise' | 'set' | 'noon' | 'tick' };
 
 type Props = {
   sunAlt: number[];
@@ -63,34 +72,82 @@ function phaseLabel(alt: number): string {
   return 'Noite';
 }
 
+/** Background wash for a solar altitude: deep night → twilight violet → dawn amber → daylight. */
+function washFor(alt: number): { color: string; opacity: number } {
+  if (alt >= 6) return { color: '#CFE3F7', opacity: 0.06 };
+  if (alt >= -4) return { color: colors.golden, opacity: 0.1 };
+  if (alt >= -6) return { color: colors.blue, opacity: 0.08 };
+  if (alt >= -12) return { color: '#0A0E2E', opacity: 0.1 };
+  if (alt >= -18) return { color: '#050820', opacity: 0.14 };
+  return { color: '#02040F', opacity: 0.18 };
+}
+
 export const SunArc = memo(function SunArc({ sunAlt, moonAlt, nowMinute, scrub, events, use24h, moonAngle, southern }: Props) {
   const [width, setWidth] = useState(0);
+  const reduce = useReducedMotion();
   const height = ARC_HEIGHT;
-  const horizonY = height * HORIZON;
+  const plotBottom = height - LABEL_BAND;
+  const horizonY = plotBottom * HORIZON + 6;
   const maxAlt = Math.max(30, ...sunAlt, ...moonAlt);
   const k = (horizonY - PAD_TOP) / maxAlt;
-  // Below the horizon is compressed so deep night stays legible above the hour labels.
-  const yFor = (alt: number) => horizonY - (alt >= 0 ? alt * k : Math.max(alt * k * 0.5, -(height - horizonY - 18)));
+  const belowRoom = plotBottom - horizonY - 4;
 
-  const paths = useMemo(() => {
-    if (!width) return { sun: '', moon: '', fill: '' };
-    const toPath = (arr: number[]) =>
-      arr.map((a, i) => `${i ? 'L' : 'M'}${((i * PATH_STEP_MIN) / 1440) * width},${yFor(a).toFixed(1)}`).join(' ');
-    const sun = toPath(sunAlt);
-    return { sun, moon: toPath(moonAlt), fill: `${sun} L${width},${horizonY} L0,${horizonY} Z` };
+  const geo = useMemo(() => {
+    if (!width) return null;
+    const y = (alt: number) => horizonY - (alt >= 0 ? alt * k : Math.max(alt * k * 0.55, -belowRoom));
+    const x = (i: number) => ((i * PATH_STEP_MIN) / 1440) * width;
+    const line = (arr: number[]) => arr.map((a, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(a).toFixed(1)}`).join(' ');
+    const sun = line(sunAlt);
+    // Golden-hour stretches of the curve (−4° to 6°) get a warm overlay.
+    const golden: string[] = [];
+    let seg = '';
+    sunAlt.forEach((a, i) => {
+      const inside = a >= -4 && a <= 6;
+      if (inside) seg += `${seg ? 'L' : 'M'}${x(i).toFixed(1)},${y(a).toFixed(1)}`;
+      else if (seg) {
+        golden.push(seg);
+        seg = '';
+      }
+    });
+    if (seg) golden.push(seg);
+    // Horizontal light wash sampled every 30 minutes.
+    const wash = Array.from({ length: 49 }, (_, j) => {
+      const a = altitudeAt(sunAlt, j * 30);
+      return { offset: j / 48, ...washFor(a) };
+    });
+    // Warm white at the highest point, amber at the horizon crossings.
+    const peakIdx = sunAlt.indexOf(Math.max(...sunAlt));
+    return {
+      sun,
+      fill: `${sun} L${width},${horizonY} L0,${horizonY} Z`,
+      moon: line(moonAlt),
+      golden,
+      wash,
+      peak: { x: x(peakIdx), y: y(sunAlt[peakIdx]) },
+      y,
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [width, sunAlt, moonAlt]);
 
   const eventMinutes = useMemo(() => events.map((e) => e.minute), [events]);
   const lastMinute = useSharedValue(nowMinute);
   const scrubbing = useSharedValue(0);
+  const reveal = useSharedValue(reduce ? 1 : 0);
+
+  // Draw the day once its card has arrived on screen.
+  const focused = useIsFocused();
+  const revealed = useLaunch((st) => st.revealed);
+  useEffect(() => {
+    if (!width || reduce || !focused || !revealed || reveal.get() > 0) return;
+    reveal.set(withDelay(620, withTiming(1, { duration: 1200, easing: EASE_OUT })));
+  }, [width, reduce, focused, revealed, reveal]);
 
   const pan = usePanGesture({
     activeOffsetX: [-6, 6],
     failOffsetY: [-12, 12],
     onActivate: (e) => {
       'worklet';
-      scrubbing.set(withTiming(1, { duration: 140 }));
+      scrubbing.set(withTiming(1, { duration: 160 }));
       lastMinute.set(scrub.get());
       scrub.set(Math.max(0, Math.min(1439, (e.x / Math.max(1, width)) * 1440)));
     },
@@ -110,12 +167,12 @@ export const SunArc = memo(function SunArc({ sunAlt, moonAlt, nowMinute, scrub, 
     },
     onDeactivate: () => {
       'worklet';
-      scrubbing.set(withTiming(0, { duration: 220 }));
+      scrubbing.set(withTiming(0, { duration: 260 }));
     },
   });
 
   const resetToNow = () => {
-    scrub.set(withTiming(nowMinute, { duration: 520, easing: EASE_OUT }));
+    scrub.set(withTiming(nowMinute, { duration: 620, easing: EASE_OUT }));
   };
 
   const doubleTap = useTapGesture({
@@ -128,32 +185,49 @@ export const SunArc = memo(function SunArc({ sunAlt, moonAlt, nowMinute, scrub, 
 
   const gesture = useCompetingGestures(pan, doubleTap);
 
+  // Clip rectangles: the draw-on reveal, and the past/future split at the cursor.
+  const revealProps = useAnimatedProps(() => ({ width: reveal.get() * width }));
+  const pastProps = useAnimatedProps(() => ({ width: Math.min(reveal.get() * width, (scrub.get() / 1440) * width) }));
+  const futureProps = useAnimatedProps(() => {
+    const cx = (scrub.get() / 1440) * width;
+    return { x: cx, width: Math.max(0, reveal.get() * width - cx) };
+  });
+
+  const markerY = (a: number) => {
+    'worklet';
+    return horizonY - (a >= 0 ? a * k : Math.max(a * k * 0.55, -belowRoom));
+  };
+
   const sunMarker = useAnimatedStyle(() => {
     const m = scrub.get();
     const a = altitudeAt(sunAlt, m);
     const x = (m / 1440) * width;
-    const y = horizonY - (a >= 0 ? a * k : Math.max(a * k * 0.5, -(height - horizonY - 18)));
+    const shown = Math.max(0, Math.min(1, (reveal.get() - 0.7) / 0.3));
     return {
-      opacity: a < -2 ? 0.55 : 1,
-      transform: [{ translateX: x - 14 }, { translateY: y - 14 }, { scale: 1 + scrubbing.get() * 0.18 }],
+      opacity: shown * (a < -1 ? 0.45 : 1),
+      transform: [{ translateX: x - 16 }, { translateY: markerY(a) - 16 }, { scale: (0.6 + shown * 0.4) * (1 + scrubbing.get() * 0.12) }],
     };
+  });
+  const haloStyle = useAnimatedStyle(() => {
+    const a = altitudeAt(sunAlt, scrub.get());
+    return { opacity: (a > -1 ? 0.55 : 0.15) * (0.6 + scrubbing.get() * 0.4), transform: [{ scale: 1 + scrubbing.get() * 0.35 }] };
   });
   const moonMarker = useAnimatedStyle(() => {
     const m = scrub.get();
     const a = altitudeAt(moonAlt, m);
     const x = (m / 1440) * width;
-    const y = horizonY - (a >= 0 ? a * k : Math.max(a * k * 0.5, -(height - horizonY - 18)));
-    return { opacity: a < 0 ? 0 : 0.95, transform: [{ translateX: x - 8 }, { translateY: y - 8 }] };
+    const shown = Math.max(0, Math.min(1, (reveal.get() - 0.7) / 0.3));
+    return { opacity: a < 0 ? 0 : shown, transform: [{ translateX: x - 9 }, { translateY: markerY(a) - 9 }] };
   });
   const cursor = useAnimatedStyle(() => ({
-    opacity: 0.25 + scrubbing.get() * 0.5,
-    transform: [{ translateX: (scrub.get() / 1440) * width }],
+    opacity: (0.35 + scrubbing.get() * 0.65) * Math.min(1, reveal.get() * 1.5),
+    transform: [{ translateX: (scrub.get() / 1440) * width - 12 }],
   }));
 
   const readout = useDerivedValue(() => formatMinuteOfDay(scrub.get(), use24h));
   const readoutSub = useDerivedValue(() => {
     const a = altitudeAt(sunAlt, scrub.get());
-    return `${phaseLabel(a)} · Sol a ${Math.round(a)}°`;
+    return `${phaseLabel(a)} · ${a >= 0 ? 'Sol a' : 'Sol'} ${Math.round(a)}°${a < 0 ? ' abaixo do horizonte' : ''}`;
   });
 
   const [offNow, setOffNow] = useState(false);
@@ -165,6 +239,11 @@ export const SunArc = memo(function SunArc({ sunAlt, moonAlt, nowMinute, scrub, 
   );
 
   const onLayout = (e: LayoutChangeEvent) => setWidth(Math.round(e.nativeEvent.layout.width));
+  const xFor = (minute: number) => (minute / 1440) * width;
+  const rise = events.find((e) => e.kind === 'rise');
+  const set = events.find((e) => e.kind === 'set');
+  const noon = events.find((e) => e.kind === 'noon');
+  const ticks = events.filter((e) => e.kind === 'tick');
 
   return (
     <View>
@@ -182,68 +261,159 @@ export const SunArc = memo(function SunArc({ sunAlt, moonAlt, nowMinute, scrub, 
         ) : null}
       </View>
       <GestureDetector gesture={gesture}>
-            <View onLayout={onLayout} style={{ height }} accessibilityLabel="Trajeto do sol hoje. Arraste para ver outros horários.">
-              {width > 0 ? (
-                <Svg width={width} height={height}>
-                  <Defs>
-                    <LinearGradient id="arcFill" x1="0" y1="0" x2="0" y2="1">
-                      <Stop offset="0" stopColor={colors.accent} stopOpacity={0.42} />
-                      <Stop offset="1" stopColor={colors.accent} stopOpacity={0.02} />
-                    </LinearGradient>
-                    <ClipPath id="above">
-                      <Rect x={0} y={0} width={width} height={horizonY} />
-                    </ClipPath>
-                    <ClipPath id="below">
-                      <Rect x={0} y={horizonY} width={width} height={height - horizonY} />
-                    </ClipPath>
-                  </Defs>
-                  <Rect x={0} y={horizonY} width={width} height={height - horizonY} fill="rgba(3,6,22,0.28)" rx={10} />
-                  {[0.25, 0.5, 0.75].map((f) => (
-                    <Line key={f} x1={f * width} x2={f * width} y1={PAD_TOP - 6} y2={height} stroke="rgba(255,255,255,0.06)" strokeWidth={1} />
+        <View onLayout={onLayout} style={{ height }} accessibilityLabel="Trajeto do sol hoje. Arraste para ver outros horários.">
+          {width > 0 && geo ? (
+            <Svg width={width} height={height}>
+              <Defs>
+                <LinearGradient id="wash" x1="0" y1="0" x2="1" y2="0">
+                  {geo.wash.map((w, i) => (
+                    <Stop key={i} offset={w.offset} stopColor={w.color} stopOpacity={w.opacity} />
                   ))}
-                  <Path d={paths.moon} stroke={colors.moon} strokeOpacity={0.45} strokeWidth={1.5} strokeDasharray="2 5" strokeLinecap="round" fill="none" />
-                  <G clipPath="url(#above)">
-                    <Path d={paths.fill} fill="url(#arcFill)" />
-                    <Path d={paths.sun} stroke={colors.accent} strokeWidth={2.5} fill="none" strokeLinecap="round" />
+                </LinearGradient>
+                <LinearGradient id="washFade" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0" stopColor="#000" stopOpacity={0} />
+                  <Stop offset="1" stopColor="#000" stopOpacity={0.22} />
+                </LinearGradient>
+                <LinearGradient id="sunStroke" gradientUnits="userSpaceOnUse" x1={0} y1={geo.peak.y} x2={0} y2={horizonY}>
+                  <Stop offset="0" stopColor="#FFF4DE" />
+                  <Stop offset="0.55" stopColor="#FFD08A" />
+                  <Stop offset="1" stopColor={colors.golden} />
+                </LinearGradient>
+                <LinearGradient id="sunFill" gradientUnits="userSpaceOnUse" x1={0} y1={geo.peak.y} x2={0} y2={horizonY}>
+                  <Stop offset="0" stopColor="#FFE2B0" stopOpacity={0.32} />
+                  <Stop offset="1" stopColor={colors.golden} stopOpacity={0.02} />
+                </LinearGradient>
+                <LinearGradient id="horizon" x1="0" y1="0" x2="1" y2="0">
+                  <Stop offset="0" stopColor="#FFFFFF" stopOpacity={0} />
+                  <Stop offset="0.15" stopColor="#FFFFFF" stopOpacity={0.4} />
+                  <Stop offset="0.85" stopColor="#FFFFFF" stopOpacity={0.4} />
+                  <Stop offset="1" stopColor="#FFFFFF" stopOpacity={0} />
+                </LinearGradient>
+                <ClipPath id="reveal">
+                  <AnimatedRect x={0} y={0} height={height} animatedProps={revealProps} />
+                </ClipPath>
+                <ClipPath id="past">
+                  <AnimatedRect x={0} y={0} height={horizonY} animatedProps={pastProps} />
+                </ClipPath>
+                <ClipPath id="future">
+                  <AnimatedRect y={0} height={horizonY} animatedProps={futureProps} />
+                </ClipPath>
+                <ClipPath id="below">
+                  <Rect x={0} y={horizonY} width={width} height={plotBottom - horizonY} />
+                </ClipPath>
+                <ClipPath id="above">
+                  <Rect x={0} y={0} width={width} height={horizonY} />
+                </ClipPath>
+              </Defs>
+
+              {/* Continuous light of the day behind everything */}
+              <Rect x={0} y={0} width={width} height={plotBottom} rx={radius.tile} fill="url(#wash)" />
+              <Rect x={0} y={horizonY} width={width} height={plotBottom - horizonY} fill="url(#washFade)" />
+
+              {/* Three-hour grid */}
+              {[3, 6, 9, 12, 15, 18, 21].map((h) => (
+                <Line
+                  key={h}
+                  x1={xFor(h * 60)}
+                  x2={xFor(h * 60)}
+                  y1={PAD_TOP - 8}
+                  y2={plotBottom}
+                  stroke="#FFFFFF"
+                  strokeOpacity={h % 6 === 0 ? 0.07 : 0.035}
+                  strokeWidth={StyleSheet.hairlineWidth * 2}
+                />
+              ))}
+
+              <G clipPath="url(#reveal)">
+                {/* Moon, quiet, only where it is up */}
+                <G clipPath="url(#above)">
+                  <Path d={geo.moon} stroke={colors.moon} strokeOpacity={0.32} strokeWidth={1} strokeDasharray="1 4" fill="none" strokeLinecap="round" />
+                </G>
+
+                {/* Sun: the past is lit, the future is a promise */}
+                <G clipPath="url(#past)">
+                  <Path d={geo.fill} fill="url(#sunFill)" />
+                  <Path d={geo.sun} stroke="url(#sunStroke)" strokeWidth={2.25} fill="none" strokeLinecap="round" />
+                </G>
+                <G clipPath="url(#future)">
+                  <Path d={geo.fill} fill="url(#sunFill)" opacity={0.35} />
+                  <Path d={geo.sun} stroke="url(#sunStroke)" strokeOpacity={0.5} strokeWidth={1.5} fill="none" strokeLinecap="round" />
+                </G>
+                {geo.golden.map((d, i) => (
+                  <Path key={i} d={d} stroke={colors.golden} strokeOpacity={0.35} strokeWidth={6} fill="none" strokeLinecap="round" />
+                ))}
+                <G clipPath="url(#below)">
+                  <Path d={geo.sun} stroke="#FFFFFF" strokeOpacity={0.16} strokeWidth={1.25} fill="none" />
+                </G>
+
+                {/* Solar noon: drop line from the peak */}
+                {noon ? (
+                  <G>
+                    <Line x1={geo.peak.x} x2={geo.peak.x} y1={geo.peak.y + 6} y2={horizonY} stroke="#FFFFFF" strokeOpacity={0.18} strokeDasharray="1.5 4" />
+                    <SvgText x={geo.peak.x} y={geo.peak.y - 10} fontSize={10} fontWeight={weight.semibold} fill="rgba(255,255,255,0.6)" textAnchor="middle">
+                      {noon.label}
+                    </SvgText>
                   </G>
-                  <G clipPath="url(#below)">
-                    <Path d={paths.sun} stroke="rgba(255,255,255,0.28)" strokeWidth={2} fill="none" />
-                  </G>
-                  <Line x1={0} x2={width} y1={horizonY} y2={horizonY} stroke="rgba(255,255,255,0.45)" strokeWidth={1} />
-                  {events.map((e) => (
-                    <G key={e.label + e.minute}>
-                      <Rect x={(e.minute / 1440) * width - 1} y={horizonY - 4} width={2} height={8} rx={1} fill={colors.text} opacity={0.8} />
-                    </G>
-                  ))}
-                  {['0h', '6h', '12h', '18h', '24h'].map((l, i) => (
+                ) : null}
+              </G>
+
+              <Rect x={0} y={horizonY - 0.5} width={width} height={1} fill="url(#horizon)" />
+
+              {/* Rise / set annotations under the horizon */}
+              {[rise, set].map((e) =>
+                e ? (
+                  <G key={e.kind}>
+                    <Circle cx={xFor(e.minute)} cy={horizonY} r={2.5} fill={colors.golden} />
                     <SvgText
-                      key={l}
-                      x={Math.min(width - 2, Math.max(2, (i / 4) * width))}
-                      y={height - 4}
+                      x={Math.min(width - 18, Math.max(18, xFor(e.minute)))}
+                      y={horizonY + 16}
                       fontSize={10}
                       fontWeight={weight.semibold}
-                      fill="rgba(255,255,255,0.45)"
-                      textAnchor={i === 0 ? 'start' : i === 4 ? 'end' : 'middle'}>
-                      {l}
+                      fill="rgba(255,255,255,0.7)"
+                      textAnchor="middle">
+                      {e.label}
                     </SvgText>
-                  ))}
-                </Svg>
-              ) : null}
-              <Animated.View pointerEvents="none" style={[styles.cursor, { height: height - PAD_TOP + 6, top: PAD_TOP - 6 }, cursor]} />
-              <Animated.View pointerEvents="none" style={[styles.marker16, moonMarker]}>
-                <MoonGlyph size={16} angle={moonAngle} southern={southern} glow={false} earthshine={false} />
-              </Animated.View>
-              <Animated.View pointerEvents="none" style={[styles.marker28, sunMarker]}>
-                <SunGlyph size={28} />
-              </Animated.View>
-            </View>
+                  </G>
+                ) : null,
+              )}
+              {ticks.map((e) => (
+                <Rect key={e.minute} x={xFor(e.minute) - 0.5} y={horizonY - 3} width={1} height={6} fill="#FFFFFF" opacity={0.45} />
+              ))}
+
+              {/* Hour scale */}
+              {[0, 6, 12, 18, 24].map((h) => (
+                <SvgText
+                  key={h}
+                  x={Math.min(width - 1, Math.max(1, xFor(h * 60)))}
+                  y={height - 8}
+                  fontSize={10}
+                  fontWeight={weight.medium}
+                  fill="rgba(255,255,255,0.38)"
+                  textAnchor={h === 0 ? 'start' : h === 24 ? 'end' : 'middle'}>
+                  {String(h).padStart(2, '0')}
+                </SvgText>
+              ))}
+            </Svg>
+          ) : null}
+
+          <Animated.View pointerEvents="none" style={[styles.cursor, { top: PAD_TOP - 10, height: plotBottom - PAD_TOP + 10 }, cursor]}>
+            <ViewGradient colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.7)', 'rgba(255,255,255,0)']} style={styles.cursorLine} />
+          </Animated.View>
+          <Animated.View pointerEvents="none" style={[styles.marker18, moonMarker]}>
+            <MoonGlyph size={18} angle={moonAngle} southern={southern} glow={false} earthshine={false} />
+          </Animated.View>
+          <Animated.View pointerEvents="none" style={[styles.marker32, sunMarker]}>
+            <Animated.View style={[styles.halo, haloStyle]} />
+            <SunGlyph size={20} />
+          </Animated.View>
+        </View>
       </GestureDetector>
     </View>
   );
 });
 
 const styles = StyleSheet.create({
-  readoutRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: space.xs, minHeight: 56 },
+  readoutRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: space.sm, minHeight: 58 },
   nowPill: {
     backgroundColor: colors.primary,
     paddingHorizontal: space.sm,
@@ -252,7 +422,9 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     marginTop: space.xxs,
   },
-  cursor: { position: 'absolute', left: 0, width: 1, backgroundColor: '#FFFFFF' },
-  marker28: { position: 'absolute', left: 0, top: 0, width: 28, height: 28 },
-  marker16: { position: 'absolute', left: 0, top: 0, width: 16, height: 16 },
+  cursor: { position: 'absolute', left: 0, width: 24, alignItems: 'center' },
+  cursorLine: { width: 1, flex: 1 },
+  marker32: { position: 'absolute', left: 0, top: 0, width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  marker18: { position: 'absolute', left: 0, top: 0, width: 18, height: 18 },
+  halo: { position: 'absolute', width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(255,214,150,0.35)' },
 });

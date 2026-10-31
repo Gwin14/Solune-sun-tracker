@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { refreshCurrentLocation } from '@/lib/location';
 import { rescheduleNotifications } from '@/lib/notifications';
 import { useApp } from '@/store/app';
+import { useLaunch } from '@/store/launch';
 import { colors } from '@/theme/tokens';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -46,7 +47,10 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (!ready) return;
-    SplashScreen.hideAsync().catch(() => {});
+    // Entrances start once the launch screen has actually left.
+    SplashScreen.hideAsync()
+      .catch(() => {})
+      .finally(() => setTimeout(() => useLaunch.getState().reveal(), 120));
     if (useApp.getState().hasOnboarded) {
       refreshCurrentLocation().finally(() => rescheduleNotifications());
     }

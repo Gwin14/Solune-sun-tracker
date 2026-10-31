@@ -8,8 +8,9 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { formatCountdown, formatDate, formatNumber, formatTime, MONTHS, WEEKDAYS_LETTER, capitalize } from '@/astro/format';
 import { computeMoonDay, MICROMOON_KM, moonState, PHASE_HINT, PHASE_LABEL, SUPERMOON_KM } from '@/astro/moon';
 import { addDays, DAY_MS, localMidnight, startOfDay, wallClock } from '@/astro/time';
+import { Appear } from '@/components/Appear';
 import { Card, Divider } from '@/components/Card';
-import { ProgressBar } from '@/components/charts';
+import { LunarWave, ProgressBar } from '@/components/charts';
 import { Icon } from '@/components/Icon';
 import { MoonGlyph } from '@/components/MoonGlyph';
 import { PressableScale } from '@/components/Pressable';
@@ -44,6 +45,11 @@ export default function MoonScreen() {
   const sampleMs = offset === 0 ? now.getTime() : dayStart.getTime() + DAY_MS / 2;
   const state = useMemo(() => moonState(new Date(sampleMs)), [sampleMs]);
   const moonDay = useMemo(() => computeMoonDay(place, dayStart), [place, dayStart]);
+  const todayStart = useMemo(() => startOfDay(now, tz), [now, tz]);
+  const wave = useMemo(
+    () => Array.from({ length: RANGE * 2 + 1 }, (_, i) => moonState(new Date(addDays(todayStart, i - RANGE, tz).getTime() + DAY_MS / 2)).illumination),
+    [todayStart, tz],
+  );
   const quarters = useQuarters(now).filter((q) => q.date.getTime() > now.getTime()).slice(0, 4);
   const nextFull = quarters.find((q) => q.key === 'full');
 
@@ -91,130 +97,125 @@ export default function MoonScreen() {
   return (
     <View style={styles.root}>
       <SkyBackground altitude={night} />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: insets.top + space.md, paddingBottom: bottom, paddingHorizontal: space.md, gap: space.sm }}>
-        <ScreenTitle title="Lua" subtitle={offset === 0 ? `Hoje em ${place.name}` : capitalize(formatDate(dayStart, tz, 'weekday'))} />
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: insets.top + space.md, paddingBottom: bottom, paddingHorizontal: space.md, gap: space.sm }}>
+          <ScreenTitle title="Lua" subtitle={offset === 0 ? `Hoje em ${place.name}` : capitalize(formatDate(dayStart, tz, 'weekday'))} />
 
-        <GestureDetector gesture={pan}>
-          <View style={styles.hero} accessibilityLabel="Arraste para ver a lua em outros dias">
-            <Animated.View style={moonStyle}>
-              <MoonGlyph size={size} angle={state.angle} southern={southern} />
-            </Animated.View>
-            <Text variant="title1" align="center" style={{ marginTop: space.xl }}>
-              {PHASE_LABEL[state.key]}
-            </Text>
-            <Text variant="callout" color={colors.textSecondary} align="center">
-              {Math.round(state.illumination * 100)}% iluminada · {state.waxing ? 'crescendo' : 'minguando'}
-            </Text>
-            <DayDots offset={offset} />
-            {offset !== 0 ? (
-              <PressableScale onPress={resetDay} style={styles.todayPill} hapticOnPress="soft">
-                <Text variant="label" color={colors.onPrimary}>
-                  Voltar para hoje
+          <GestureDetector gesture={pan}>
+            <View style={styles.hero} accessibilityLabel="Arraste para ver a lua em outros dias">
+              <Appear delay={100} y={0} scale={0.9} duration={1100}>
+                <Animated.View style={moonStyle}>
+                  <MoonGlyph size={size} angle={state.angle} southern={southern} />
+                </Animated.View>
+              </Appear>
+              <Appear delay={260} y={14} duration={700}>
+                <Text variant="title1" align="center" style={{ marginTop: space.xl }}>
+                  {PHASE_LABEL[state.key]}
                 </Text>
-              </PressableScale>
-            ) : (
-              <Text variant="caption" color={colors.textTertiary} style={{ marginTop: space.sm }}>
-                Arraste a lua para viajar no tempo
+                <Text variant="callout" color={colors.textSecondary} align="center">
+                  {Math.round(state.illumination * 100)}% iluminada · {state.waxing ? 'crescendo' : 'minguando'}
+                </Text>
+              </Appear>
+              <View style={{ alignSelf: 'stretch', marginTop: space.lg }}>
+                <LunarWave illum={wave} offset={offset} range={RANGE} />
+              </View>
+              {offset !== 0 ? (
+                <PressableScale onPress={resetDay} style={styles.todayPill} hapticOnPress="soft">
+                  <Text variant="label" color={colors.onPrimary}>
+                    Voltar para hoje
+                  </Text>
+                </PressableScale>
+              ) : (
+                <Text variant="caption" color={colors.textTertiary} style={{ marginTop: space.sm }}>
+                  Arraste a lua para viajar no tempo
+                </Text>
+              )}
+            </View>
+          </GestureDetector>
+
+          <Reveal index={0}>
+            <Card>
+              <Text variant="callout" color={colors.textSecondary}>
+                {PHASE_HINT[state.key]}
               </Text>
-            )}
-          </View>
-        </GestureDetector>
+            </Card>
+          </Reveal>
 
-        <Reveal index={0}>
-          <Card>
-            <Text variant="callout" color={colors.textSecondary}>
-              {PHASE_HINT[state.key]}
-            </Text>
-          </Card>
-        </Reveal>
+          <Reveal index={1} style={styles.row}>
+            <Card title="Nasce" icon="moonrise" iconColor={colors.moon} style={{ flex: 1 }}>
+              <Text variant="metric" selectable>
+                {formatTime(moonDay.moonrise, tz, use24h)}
+              </Text>
+            </Card>
+            <Card title="Põe" icon="moon" iconColor={colors.moon} style={{ flex: 1 }}>
+              <Text variant="metric" selectable>
+                {formatTime(moonDay.moonset, tz, use24h)}
+              </Text>
+            </Card>
+          </Reveal>
 
-        <Reveal index={1} style={styles.row}>
-          <Card title="Nasce" icon="moonrise" iconColor={colors.moon} style={{ flex: 1 }}>
-            <Text variant="metric" selectable>
-              {formatTime(moonDay.moonrise, tz, use24h)}
-            </Text>
-          </Card>
-          <Card title="Põe" icon="moon" iconColor={colors.moon} style={{ flex: 1 }}>
-            <Text variant="metric" selectable>
-              {formatTime(moonDay.moonset, tz, use24h)}
-            </Text>
-          </Card>
-        </Reveal>
-
-        <Reveal index={2}>
-          <Card title="Próximas fases" icon="moonPhase" iconColor={colors.moon}>
-            {quarters.map((q, i) => (
-              <View key={q.date.getTime()}>
-                {i ? <Divider /> : null}
-                <View style={styles.phaseRow}>
-                  <MoonGlyph size={30} angle={{ new: 0, firstQuarter: 90, full: 180, lastQuarter: 270 }[q.key as 'new'] ?? 0} southern={southern} glow={false} />
-                  <View style={{ flex: 1 }}>
-                    <Text variant="headline">{PHASE_LABEL[q.key]}</Text>
-                    <Text variant="footnote" color={colors.textSecondary}>
-                      {capitalize(formatDate(q.date, tz, 'compact'))} · {formatTime(q.date, tz, use24h)}
+          <Reveal index={2}>
+            <Card title="Próximas fases" icon="moonPhase" iconColor={colors.moon}>
+              {quarters.map((q, i) => (
+                <View key={q.date.getTime()}>
+                  {i ? <Divider /> : null}
+                  <View style={styles.phaseRow}>
+                    <MoonGlyph size={30} angle={{ new: 0, firstQuarter: 90, full: 180, lastQuarter: 270 }[q.key as 'new'] ?? 0} southern={southern} glow={false} />
+                    <View style={{ flex: 1 }}>
+                      <Text variant="headline">{PHASE_LABEL[q.key]}</Text>
+                      <Text variant="footnote" color={colors.textSecondary}>
+                        {capitalize(formatDate(q.date, tz, 'compact'))} · {formatTime(q.date, tz, use24h)}
+                      </Text>
+                    </View>
+                    <Text variant="subhead" color={colors.textSecondary}>
+                      {formatCountdown(q.date.getTime() - now.getTime())}
                     </Text>
                   </View>
-                  <Text variant="subhead" color={colors.textSecondary}>
-                    {formatCountdown(q.date.getTime() - now.getTime())}
+                </View>
+              ))}
+            </Card>
+          </Reveal>
+
+          <Reveal index={3}>
+            <Card title="Distância da Terra" icon="ruler">
+              <View style={styles.row}>
+                <Metric label="Agora" value={`${formatNumber(state.distanceKm)} km`} />
+                <Metric label="Diâmetro aparente" value={`${((2 * 1737.4) / state.distanceKm * (180 / Math.PI) * 60).toFixed(1).replace('.', ',')}′`} />
+              </View>
+              <View style={{ marginTop: space.md, gap: 6 }}>
+                <ProgressBar value={1 - distPct} color={colors.moon} height={10} />
+                <View style={styles.between}>
+                  <Text variant="caption" color={colors.textTertiary}>
+                    Perigeu 356 mil km
+                  </Text>
+                  <Text variant="caption" color={colors.textTertiary}>
+                    Apogeu 406 mil km
                   </Text>
                 </View>
               </View>
-            ))}
-          </Card>
-        </Reveal>
+              {nextFull ? (
+                <View style={styles.badgeRow}>
+                  <Icon name={nextFull.distanceKm < SUPERMOON_KM ? 'sparkle' : 'moonFull'} size={14} color={nextFull.distanceKm < SUPERMOON_KM ? colors.accent : colors.moon} />
+                  <Text variant="footnote" color={colors.textSecondary} style={{ flex: 1 }}>
+                    {nextFull.distanceKm < SUPERMOON_KM
+                      ? `A próxima lua cheia é uma superlua, a ${formatNumber(nextFull.distanceKm)} km.`
+                      : nextFull.distanceKm > MICROMOON_KM
+                        ? `A próxima lua cheia é uma microlua, a ${formatNumber(nextFull.distanceKm)} km.`
+                        : `Próxima lua cheia a ${formatNumber(nextFull.distanceKm)} km.`}
+                  </Text>
+                </View>
+              ) : null}
+            </Card>
+          </Reveal>
 
-        <Reveal index={3}>
-          <Card title="Distância da Terra" icon="ruler">
-            <View style={styles.row}>
-              <Metric label="Agora" value={`${formatNumber(state.distanceKm)} km`} />
-              <Metric label="Diâmetro aparente" value={`${((2 * 1737.4) / state.distanceKm * (180 / Math.PI) * 60).toFixed(1).replace('.', ',')}′`} />
-            </View>
-            <View style={{ marginTop: space.md, gap: 6 }}>
-              <ProgressBar value={1 - distPct} color={colors.moon} height={10} />
-              <View style={styles.between}>
-                <Text variant="caption" color={colors.textTertiary}>
-                  Perigeu 356 mil km
-                </Text>
-                <Text variant="caption" color={colors.textTertiary}>
-                  Apogeu 406 mil km
-                </Text>
-              </View>
-            </View>
-            {nextFull ? (
-              <View style={styles.badgeRow}>
-                <Icon name={nextFull.distanceKm < SUPERMOON_KM ? 'sparkle' : 'moonFull'} size={14} color={nextFull.distanceKm < SUPERMOON_KM ? colors.accent : colors.moon} />
-                <Text variant="footnote" color={colors.textSecondary} style={{ flex: 1 }}>
-                  {nextFull.distanceKm < SUPERMOON_KM
-                    ? `A próxima lua cheia é uma superlua, a ${formatNumber(nextFull.distanceKm)} km.`
-                    : nextFull.distanceKm > MICROMOON_KM
-                      ? `A próxima lua cheia é uma microlua, a ${formatNumber(nextFull.distanceKm)} km.`
-                      : `Próxima lua cheia a ${formatNumber(nextFull.distanceKm)} km.`}
-                </Text>
-              </View>
-            ) : null}
-          </Card>
-        </Reveal>
-
-        <Reveal index={4}>
-          <MoonCalendar now={now} tz={tz} southern={southern} />
-        </Reveal>
-      </ScrollView>
+          <Reveal index={4}>
+            <MoonCalendar now={now} tz={tz} southern={southern} />
+          </Reveal>
+        </ScrollView>
       <TopFade />
     </View>
   );
 }
 
-function DayDots({ offset }: { offset: number }) {
-  return (
-    <View style={styles.dots}>
-      {Array.from({ length: 9 }, (_, i) => {
-        const d = i - 4;
-        const active = Math.max(-4, Math.min(4, offset)) === d;
-        return <View key={i} style={[styles.dot, active && { backgroundColor: colors.text, width: 16 }]} />;
-      })}
-    </View>
-  );
-}
 
 function MoonCalendar({ now, tz, southern }: { now: Date; tz?: string; southern: boolean }) {
   const w = wallClock(now, tz);
@@ -265,8 +266,6 @@ const styles = StyleSheet.create({
   phaseRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingVertical: space.sm },
   between: { flexDirection: 'row', justifyContent: 'space-between' },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: space.xs, marginTop: space.md },
-  dots: { flexDirection: 'row', gap: 5, marginTop: space.md, alignItems: 'center' },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.25)' },
   todayPill: { marginTop: space.sm, backgroundColor: colors.primary, paddingHorizontal: space.md, paddingVertical: 6, borderRadius: radius.pill },
   weekHeader: { flexDirection: 'row', marginBottom: space.xs },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },

@@ -64,61 +64,61 @@ export default function EventsScreen() {
   return (
     <View style={styles.root}>
       <SkyBackground altitude={night} />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: insets.top + space.md, paddingBottom: bottom, gap: space.sm }}>
-        <View style={{ paddingHorizontal: space.md }}>
-          <ScreenTitle title="Eventos" subtitle="Planeje o seu céu" />
-        </View>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: insets.top + space.md, paddingBottom: bottom, gap: space.sm }}>
+          <View style={{ paddingHorizontal: space.md }}>
+            <ScreenTitle title="Eventos" subtitle="Planeje o seu céu" />
+          </View>
 
-        <Reveal index={0}>
-          <DayPlanner />
-        </Reveal>
+          <Reveal index={0}>
+            <DayPlanner />
+          </Reveal>
 
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
-          {FILTERS.map((f) => {
-            const active = f.key === filter;
-            return (
-              <PressableScale
-                key={f.key}
-                onPress={() => setFilter(f.key)}
-                hapticOnPress="tick"
-                accessibilityRole="button"
-                accessibilityState={{ selected: active }}
-                style={[styles.filter, active && styles.filterActive]}>
-                <Text variant="subhead" color={active ? colors.onPrimary : colors.text} style={{ fontWeight: '500' }}>
-                  {f.label}
-                </Text>
-              </PressableScale>
-            );
-          })}
-        </ScrollView>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+            {FILTERS.map((f) => {
+              const active = f.key === filter;
+              return (
+                <PressableScale
+                  key={f.key}
+                  onPress={() => setFilter(f.key)}
+                  hapticOnPress="tick"
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  style={[styles.filter, active && styles.filterActive]}>
+                  <Text variant="subhead" color={active ? colors.onPrimary : colors.text} style={{ fontWeight: '500' }}>
+                    {f.label}
+                  </Text>
+                </PressableScale>
+              );
+            })}
+          </ScrollView>
 
-        <Animated.View layout={LinearTransition.duration(240)} style={{ paddingHorizontal: space.md, gap: space.lg }}>
-          {grouped.length === 0 ? (
-            <Card>
-              <View style={{ alignItems: 'center', gap: space.xs, paddingVertical: space.lg }}>
-                <Icon name="telescope" size={28} color={colors.textSecondary} />
-                <Text variant="headline">Nada por aqui no próximo ano</Text>
-                <Text variant="footnote" color={colors.textSecondary} align="center">
-                  Experimente outro filtro para ver mais eventos.
-                </Text>
-              </View>
-            </Card>
-          ) : null}
-          {grouped.map(([month, list]) => (
-            <Animated.View key={`${filter}-${month}`} entering={FadeIn.duration(220)} exiting={FadeOut.duration(140)} style={{ gap: space.xs }}>
-              <Text variant="title3">{month}</Text>
-              <Card padded={false}>
-                {list.map((e, i) => (
-                  <View key={e.id}>
-                    {i ? <Divider style={{ marginLeft: 68 }} /> : null}
-                    <EventRow e={e} todayKey={todayKey} tz={tz} />
-                  </View>
-                ))}
+          <Animated.View layout={LinearTransition.duration(240)} style={{ paddingHorizontal: space.md, gap: space.lg }}>
+            {grouped.length === 0 ? (
+              <Card>
+                <View style={{ alignItems: 'center', gap: space.xs, paddingVertical: space.lg }}>
+                  <Icon name="telescope" size={28} color={colors.textSecondary} />
+                  <Text variant="headline">Nada por aqui no próximo ano</Text>
+                  <Text variant="footnote" color={colors.textSecondary} align="center">
+                    Experimente outro filtro para ver mais eventos.
+                  </Text>
+                </View>
               </Card>
-            </Animated.View>
-          ))}
-        </Animated.View>
-      </ScrollView>
+            ) : null}
+            {grouped.map(([month, list]) => (
+              <Animated.View key={`${filter}-${month}`} entering={FadeIn.duration(220)} exiting={FadeOut.duration(140)} style={{ gap: space.xs }}>
+                <Text variant="title3">{month}</Text>
+                <Card padded={false}>
+                  {list.map((e, i) => (
+                    <View key={e.id}>
+                      {i ? <Divider style={{ marginLeft: 68 }} /> : null}
+                      <EventRow e={e} todayKey={todayKey} tz={tz} />
+                    </View>
+                  ))}
+                </Card>
+              </Animated.View>
+            ))}
+          </Animated.View>
+        </ScrollView>
       <TopFade />
     </View>
   );

@@ -1,27 +1,19 @@
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import Animated, { FadeInDown, useReducedMotion, FadeIn } from 'react-native-reanimated';
 
-import { EASE_OUT } from '@/theme/motion';
 import { colors, space } from '@/theme/tokens';
 
+import { Appear } from './Appear';
 import { Icon, type IconName } from './Icon';
 import { PressableScale } from './Pressable';
 import { Text } from './Text';
 
-/** Staggered entrance for stacked cards (first mount only, capped at 8). */
-export function Reveal({ index = 0, children, style }: { index?: number; children: ReactNode; style?: StyleProp<ViewStyle> }) {
-  const reduce = useReducedMotion();
-  const entering = reduce
-    ? FadeIn.duration(160)
-    : FadeInDown.delay(Math.min(index, 8) * 55)
-        .duration(420)
-        .easing(EASE_OUT)
-        .withInitialValues({ transform: [{ translateY: 18 }] });
+/** Staggered entrance for stacked content: after the hero, capped at 8 steps. */
+export function Reveal({ index = 0, base = 300, children, style }: { index?: number; base?: number; children: ReactNode; style?: StyleProp<ViewStyle> }) {
   return (
-    <Animated.View entering={entering} style={style}>
+    <Appear delay={base + Math.min(index, 8) * 75} y={28} scale={0.985} duration={700} style={style}>
       {children}
-    </Animated.View>
+    </Appear>
   );
 }
 
@@ -56,7 +48,7 @@ export function IconButton({ icon, onPress, label, size = 40 }: { icon: IconName
 
 export function ScreenTitle({ title, subtitle, right }: { title: string; subtitle?: string; right?: ReactNode }) {
   return (
-    <View style={styles.titleRow}>
+    <Appear delay={40} y={10} duration={600} style={styles.titleRow}>
       <View style={{ flex: 1, gap: 2 }}>
         <Text variant="title1">{title}</Text>
         {subtitle ? (
@@ -66,7 +58,7 @@ export function ScreenTitle({ title, subtitle, right }: { title: string; subtitl
         ) : null}
       </View>
       {right}
-    </View>
+    </Appear>
   );
 }
 

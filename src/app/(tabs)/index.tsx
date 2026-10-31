@@ -1,14 +1,15 @@
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useDerivedValue, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { compassPoint, formatCountdown, formatDegrees, formatDuration, formatSignedMinutes, formatTime } from '@/astro/format';
 import { PHASE_LABEL } from '@/astro/moon';
 import { shadowRatio, type Window } from '@/astro/sun';
+import { Appear } from '@/components/Appear';
 import { Card, Divider } from '@/components/Card';
-import { CompassDial, DaylightChart, LegendDot, LightTimeline, PHASE_LEGEND } from '@/components/charts';
+import { DaylightChart, LegendDot, LightTimeline, PHASE_LEGEND, SkyDome } from '@/components/charts';
 import { CheckInCard } from '@/components/CheckInCard';
 import { Icon } from '@/components/Icon';
 import { MoonGlyph } from '@/components/MoonGlyph';
@@ -28,6 +29,7 @@ type NextEvent = { label: string; date: Date };
 
 export default function TodayScreen() {
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
   const bottom = useTabBarSpace();
   const place = usePlace();
   const now = useNow();
@@ -62,14 +64,15 @@ export default function TodayScreen() {
 
   const arcEvents: ArcEvent[] = useMemo(() => {
     const out: ArcEvent[] = [];
-    const add = (label: string, d: Date | null) => d && out.push({ label, minute: minuteOfDay(d, tz) });
-    add('Nascer', today.sunrise);
-    add('Meio-dia', today.noon);
-    add('Pôr', today.sunset);
-    add('Dourada', today.goldenEvening.start);
-    add('Dourada manhã', today.goldenMorning.end);
+    const add = (kind: ArcEvent['kind'], d: Date | null) => d && out.push({ kind, label: t(d), minute: minuteOfDay(d, tz) });
+    add('rise', today.sunrise);
+    add('noon', today.noon);
+    add('set', today.sunset);
+    add('tick', today.goldenEvening.start);
+    add('tick', today.goldenMorning.end);
     return out;
-  }, [today, tz]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [today, tz, use24h]);
 
   const year = useYearDaylight(place, now.getUTCFullYear());
   const window = useCheckInWindow({ now, tz, today, tomorrow, sunAlt: live.sun.alt, moonAlt: live.moon.alt, use24h });
@@ -81,179 +84,196 @@ export default function TodayScreen() {
   return (
     <View style={styles.root}>
       <SkyBackground altitude={skyAlt} glowX={glowX} />
-      <ScrollView
-        contentInsetAdjustmentBehavior="never"
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingTop: insets.top + space.xs, paddingBottom: bottom, paddingHorizontal: space.md, gap: space.sm }}>
-        <View style={styles.topBar}>
-          <PressableScale onPress={() => router.push('/locations')} style={styles.placeBtn} hapticOnPress="soft" accessibilityLabel={`Local: ${place.name}. Trocar local`}>
-            <Icon name={place.id === 'current' ? 'location' : 'pin'} size={14} color={colors.text} />
-            <Text variant="subhead" numberOfLines={1} style={{ maxWidth: 220 }}>
-              {place.name}
-            </Text>
-            <Icon name="chevronDown" size={12} color={colors.textSecondary} />
-          </PressableScale>
-          <IconButton icon="settings" label="Ajustes" onPress={() => router.push('/settings')} />
-        </View>
-
-        <Reveal index={0} style={styles.hero}>
-          {next ? (
-            <>
-              <Text variant="display" align="center" selectable>
-                {t(next.date)}
+        <ScrollView
+          contentInsetAdjustmentBehavior="never"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingTop: insets.top + space.xs, paddingBottom: bottom, paddingHorizontal: space.md, gap: space.sm }}>
+          <Appear delay={80} y={-12} duration={650} style={styles.topBar}>
+            <PressableScale onPress={() => router.push('/locations')} style={styles.placeBtn} hapticOnPress="soft" accessibilityLabel={`Local: ${place.name}. Trocar local`}>
+              <Icon name={place.id === 'current' ? 'location' : 'pin'} size={14} color={colors.text} />
+              <Text variant="subhead" numberOfLines={1} style={{ maxWidth: 220 }}>
+                {place.name}
               </Text>
-              <Text variant="title3" align="center">
-                {next.label} {formatCountdown(next.date.getTime() - now.getTime())}
-              </Text>
-            </>
-          ) : (
-            <>
-              <Text variant="hero" align="center">
-                {today.polar === 'day' ? 'Sol da meia-noite' : 'Noite polar'}
-              </Text>
-              <Text variant="title3" align="center">
-                {today.polar === 'day' ? 'O sol não se põe hoje.' : 'O sol não nasce hoje.'}
-              </Text>
-            </>
-          )}
-          <Text variant="callout" color={colors.textSecondary} align="center" style={{ marginTop: space.xxs }}>
-            Dia de {formatDuration(today.dayLengthMin)} · {formatSignedMinutes(dayDelta)} que ontem
-          </Text>
-        </Reveal>
+              <Icon name="chevronDown" size={12} color={colors.textSecondary} />
+            </PressableScale>
+            <IconButton icon="settings" label="Ajustes" onPress={() => router.push('/settings')} />
+          </Appear>
 
-        <Reveal index={1}>
-          <Card title="Trajeto de hoje" icon="sun" accessory={<Hint />}>
-            <SunArc
-              sunAlt={sunPath.alt}
-              moonAlt={moonPath.alt}
-              nowMinute={nowMin}
-              scrub={scrub}
-              events={arcEvents}
-              use24h={use24h}
-              moonAngle={live.moonState.angle}
-              southern={southern}
-            />
-          </Card>
-        </Reveal>
-
-        <Reveal index={2} style={styles.row}>
-          <Card title="Nascer" icon="sunrise" style={{ flex: 1 }}>
-            <Text variant="metric" selectable>
-              {t(today.sunrise)}
-            </Text>
-            <Text variant="footnote" color={colors.textSecondary}>
-              {today.sunriseAzimuth != null ? `${formatDegrees(today.sunriseAzimuth)} ${compassPoint(today.sunriseAzimuth)}` : '—'}
-            </Text>
-            <Text variant="caption" color={colors.textTertiary}>
-              Amanhã {t(tomorrow.sunrise)}
-            </Text>
-          </Card>
-          <Card title="Pôr" icon="sunset" style={{ flex: 1 }}>
-            <Text variant="metric" selectable>
-              {t(today.sunset)}
-            </Text>
-            <Text variant="footnote" color={colors.textSecondary}>
-              {today.sunsetAzimuth != null ? `${formatDegrees(today.sunsetAzimuth)} ${compassPoint(today.sunsetAzimuth)}` : '—'}
-            </Text>
-            <Text variant="caption" color={colors.textTertiary}>
-              Amanhã {t(tomorrow.sunset)}
-            </Text>
-          </Card>
-        </Reveal>
-
-        <Reveal index={3}>
-          <Card title="Horas mágicas" icon="sparkle">
-            <View style={{ gap: space.sm }}>
-              <MagicRow label="Manhã" blue={today.blueMorning} golden={today.goldenMorning} order="blueFirst" t={t} />
-              <Divider />
-              <MagicRow label="Tarde" blue={today.blueEvening} golden={today.goldenEvening} order="goldenFirst" t={t} />
-            </View>
-            <Text variant="caption" color={colors.textTertiary} style={{ marginTop: space.sm }}>
-              Dourada: sol entre −4° e 6°. Azul: entre −6° e −4°.
-            </Text>
-          </Card>
-        </Reveal>
-
-        <Reveal index={4}>
-          <Card title="Luz ao longo do dia" icon="clock">
-            <LightTimeline sunAlt={sunPath.alt} nowMinute={nowMin} />
-            <View style={styles.legend}>
-              {PHASE_LEGEND.map((l) => (
-                <View key={l.label} style={styles.legendItem}>
-                  <LegendDot color={l.color} />
-                  <Text variant="caption" color={colors.textSecondary}>
-                    {l.label}
+          <View style={styles.hero}>
+            {next ? (
+              <>
+                <Appear delay={140} y={16} scale={0.94} duration={950}>
+                  <Text variant="display" align="center" selectable>
+                    {t(next.date)}
                   </Text>
-                </View>
-              ))}
-            </View>
-            <Divider style={{ marginVertical: space.sm }} />
-            <TwilightRow label="Crepúsculo civil" w={today.civil} t={t} />
-            <TwilightRow label="Crepúsculo náutico" w={today.nautical} t={t} />
-            <TwilightRow label="Crepúsculo astronômico" w={today.astronomical} t={t} />
-            <TwilightRow label="Meio-dia solar" w={{ start: today.noon, end: null }} t={t} single={`${t(today.noon)} · ${formatDegrees(today.noonAltitude)}`} />
-          </Card>
-        </Reveal>
+                </Appear>
+                <Appear delay={260} y={16} scale={0.94} duration={950}>
+                  <Text variant="title3" align="center">
+                    {next.label} {formatCountdown(next.date.getTime() - now.getTime())}
+                  </Text>
+                </Appear>
+              </>
+            ) : (
+              <>
+                <Text variant="hero" align="center">
+                  {today.polar === 'day' ? 'Sol da meia-noite' : 'Noite polar'}
+                </Text>
+                <Text variant="title3" align="center">
+                  {today.polar === 'day' ? 'O sol não se põe hoje.' : 'O sol não nasce hoje.'}
+                </Text>
+              </>
+            )}
+            <Appear delay={360} y={16} scale={0.94} duration={950}>
+              <Text variant="callout" color={colors.textSecondary} align="center" style={{ marginTop: space.xxs }}>
+                Dia de {formatDuration(today.dayLengthMin)} · {formatSignedMinutes(dayDelta)} que ontem
+              </Text>
+            </Appear>
+          </View>
 
-        <Reveal index={5}>
-          <Card title={PHASE_LABEL[live.moonState.key]} icon="moon" iconColor={colors.moon} onPress={() => router.navigate('/moon')} accessory={<Icon name="chevronRight" size={13} color={colors.textTertiary} />}>
-            <View style={styles.moonRow}>
-              <MoonGlyph size={76} angle={live.moonState.angle} southern={southern} />
-              <View style={{ flex: 1, gap: space.sm }}>
-                <View style={styles.row}>
-                  <Metric label="Iluminação" value={`${Math.round(live.moonState.illumination * 100)}%`} />
-                  <Metric label="Idade" value={`${live.moonState.ageDays.toFixed(1).replace('.', ',')} d`} />
-                </View>
-                <View style={styles.row}>
-                  <Metric label="Nasce" value={t(moonDay.moonrise)} />
-                  <Metric label="Põe" value={t(moonDay.moonset)} />
-                </View>
-              </View>
-            </View>
-          </Card>
-        </Reveal>
-
-        <Reveal index={6}>
-          <Card title="Posição agora" icon="compass">
-            <View style={styles.moonRow}>
-              <CompassDial
-                size={148}
-                sunAz={live.sun.az}
-                sunAlt={live.sun.alt}
-                moonAz={live.moon.az}
-                moonAlt={live.moon.alt}
-                riseAz={today.sunriseAzimuth}
-                setAz={today.sunsetAzimuth}
+          <Reveal index={1}>
+            <Card title="Trajeto de hoje" icon="sun" accessory={<Hint />}>
+              <SunArc
+                sunAlt={sunPath.alt}
+                moonAlt={moonPath.alt}
+                nowMinute={nowMin}
+                scrub={scrub}
+                events={arcEvents}
+                use24h={use24h}
+                moonAngle={live.moonState.angle}
+                southern={southern}
               />
-              <View style={{ flex: 1, gap: space.sm }}>
-                <Metric label="Altitude do sol" value={formatDegrees(live.sun.alt, 1)} color={live.sun.alt > 0 ? colors.accent : colors.text} />
-                <Metric label="Direção" value={`${formatDegrees(live.sun.az)} ${compassPoint(live.sun.az)}`} />
-                <Metric label="Sua sombra" value={shadow ? `${shadow.toFixed(1).replace('.', ',')}×` : '—'} sub={shadow ? 'da sua altura' : 'sol abaixo do horizonte'} />
+            </Card>
+          </Reveal>
+
+          <Reveal index={2} style={styles.row}>
+            <Card title="Nascer" icon="sunrise" style={{ flex: 1 }}>
+              <Text variant="metric" selectable>
+                {t(today.sunrise)}
+              </Text>
+              <Text variant="footnote" color={colors.textSecondary}>
+                {today.sunriseAzimuth != null ? `${formatDegrees(today.sunriseAzimuth)} ${compassPoint(today.sunriseAzimuth)}` : '—'}
+              </Text>
+              <Text variant="caption" color={colors.textTertiary}>
+                Amanhã {t(tomorrow.sunrise)}
+              </Text>
+            </Card>
+            <Card title="Pôr" icon="sunset" style={{ flex: 1 }}>
+              <Text variant="metric" selectable>
+                {t(today.sunset)}
+              </Text>
+              <Text variant="footnote" color={colors.textSecondary}>
+                {today.sunsetAzimuth != null ? `${formatDegrees(today.sunsetAzimuth)} ${compassPoint(today.sunsetAzimuth)}` : '—'}
+              </Text>
+              <Text variant="caption" color={colors.textTertiary}>
+                Amanhã {t(tomorrow.sunset)}
+              </Text>
+            </Card>
+          </Reveal>
+
+          <Reveal index={3}>
+            <Card title="Horas mágicas" icon="sparkle">
+              <View style={{ gap: space.sm }}>
+                <MagicRow label="Manhã" blue={today.blueMorning} golden={today.goldenMorning} order="blueFirst" t={t} />
+                <Divider />
+                <MagicRow label="Tarde" blue={today.blueEvening} golden={today.goldenEvening} order="goldenFirst" t={t} />
               </View>
-            </View>
-          </Card>
-        </Reveal>
+              <Text variant="caption" color={colors.textTertiary} style={{ marginTop: space.sm }}>
+                Dourada: sol entre −4° e 6°. Azul: entre −6° e −4°.
+              </Text>
+            </Card>
+          </Reveal>
 
-        <Reveal index={7}>
-          <CheckInCard window={window} tz={tz} moonIllum={live.moonState.illumination} />
-        </Reveal>
+          <Reveal index={4}>
+            <Card title="Luz ao longo do dia" icon="clock">
+              <LightTimeline
+                sunAlt={sunPath.alt}
+                nowMinute={nowMin}
+                marks={[
+                  { d: today.civil.start, label: '' },
+                  { d: today.sunrise, label: t(today.sunrise) },
+                  { d: today.sunset, label: t(today.sunset) },
+                  { d: today.civil.end, label: '' },
+                ]
+                  .filter((m): m is { d: Date; label: string } => !!m.d)
+                  .map((m) => ({ minute: minuteOfDay(m.d, tz), label: m.label }))}
+              />
+              <View style={styles.legend}>
+                {PHASE_LEGEND.map((l) => (
+                  <View key={l.label} style={styles.legendItem}>
+                    <LegendDot color={l.color} />
+                    <Text variant="caption" color={colors.textSecondary}>
+                      {l.label}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+              <Divider style={{ marginVertical: space.sm }} />
+              <TwilightRow label="Crepúsculo civil" w={today.civil} t={t} />
+              <TwilightRow label="Crepúsculo náutico" w={today.nautical} t={t} />
+              <TwilightRow label="Crepúsculo astronômico" w={today.astronomical} t={t} />
+              <TwilightRow label="Meio-dia solar" w={{ start: today.noon, end: null }} t={t} single={`${t(today.noon)} · ${formatDegrees(today.noonAltitude)}`} />
+            </Card>
+          </Reveal>
 
-        <Reveal index={8}>
-          <Card title="Duração do dia no ano" icon="hourglass">
-            <DaylightChart data={year} todayT={now.getTime()} />
-            <View style={[styles.row, { marginTop: space.sm }]}>
-              <Metric label="Mais longo" value={formatDuration(longest, { compact: true })} />
-              <Metric label="Mais curto" value={formatDuration(shortest, { compact: true })} />
-              <Metric label="Hoje" value={formatDuration(today.dayLengthMin, { compact: true })} color={colors.accent} />
-            </View>
-          </Card>
-        </Reveal>
+          <Reveal index={5}>
+            <Card title={PHASE_LABEL[live.moonState.key]} icon="moon" iconColor={colors.moon} onPress={() => router.navigate('/moon')} accessory={<Icon name="chevronRight" size={13} color={colors.textTertiary} />}>
+              <View style={styles.moonRow}>
+                <MoonGlyph size={76} angle={live.moonState.angle} southern={southern} />
+                <View style={{ flex: 1, gap: space.sm }}>
+                  <View style={styles.row}>
+                    <Metric label="Iluminação" value={`${Math.round(live.moonState.illumination * 100)}%`} />
+                    <Metric label="Idade" value={`${live.moonState.ageDays.toFixed(1).replace('.', ',')} d`} />
+                  </View>
+                  <View style={styles.row}>
+                    <Metric label="Nasce" value={t(moonDay.moonrise)} />
+                    <Metric label="Põe" value={t(moonDay.moonset)} />
+                  </View>
+                </View>
+              </View>
+            </Card>
+          </Reveal>
 
-        <Text variant="caption" color={colors.textTertiary} align="center" style={{ marginTop: space.xs }}>
-          {place.name}
-          {place.region ? `, ${place.region}` : ''} · {place.latitude.toFixed(3)}, {place.longitude.toFixed(3)}
-        </Text>
-      </ScrollView>
+          <Reveal index={6}>
+            <Card title="Céu agora" icon="compass">
+              <View style={{ alignItems: 'center', paddingVertical: space.xs }}>
+                <SkyDome
+                  size={Math.min(width - space.md * 4, 300)}
+                  sunPath={sunPath}
+                  moonPath={moonPath}
+                  sun={live.sun}
+                  moon={live.moon}
+                  riseAz={today.sunriseAzimuth}
+                  setAz={today.sunsetAzimuth}
+                />
+              </View>
+              <View style={[styles.row, { marginTop: space.sm }]}>
+                <Metric label="Altitude" value={formatDegrees(live.sun.alt, 1)} color={live.sun.alt > 0 ? colors.accent : colors.text} />
+                <Metric label="Direção" value={`${formatDegrees(live.sun.az)} ${compassPoint(live.sun.az)}`} />
+                <Metric label="Sombra" value={shadow ? `${shadow.toFixed(1).replace('.', ',')}×` : '—'} sub={shadow ? 'sua altura' : 'sol abaixo'} />
+              </View>
+            </Card>
+          </Reveal>
+
+          <Reveal index={7}>
+            <CheckInCard window={window} tz={tz} moonIllum={live.moonState.illumination} />
+          </Reveal>
+
+          <Reveal index={8}>
+            <Card title="Duração do dia no ano" icon="hourglass">
+              <DaylightChart data={year} todayT={now.getTime()} format={(m) => formatDuration(m, { compact: true })} />
+              <View style={[styles.row, { marginTop: space.sm }]}>
+                <Metric label="Mais longo" value={formatDuration(longest, { compact: true })} />
+                <Metric label="Mais curto" value={formatDuration(shortest, { compact: true })} />
+                <Metric label="Hoje" value={formatDuration(today.dayLengthMin, { compact: true })} color={colors.accent} />
+              </View>
+            </Card>
+          </Reveal>
+
+          <Text variant="caption" color={colors.textTertiary} align="center" style={{ marginTop: space.xs }}>
+            {place.name}
+            {place.region ? `, ${place.region}` : ''} · {place.latitude.toFixed(3)}, {place.longitude.toFixed(3)}
+          </Text>
+        </ScrollView>
       <TopFade />
     </View>
   );

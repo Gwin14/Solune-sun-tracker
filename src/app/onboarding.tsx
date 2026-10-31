@@ -4,8 +4,6 @@ import { BackHandler, Pressable, StyleSheet, useWindowDimensions, View } from 'r
 import Animated, {
   Easing,
   FadeIn,
-  FadeInRight,
-  FadeOutLeft,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
@@ -17,6 +15,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
+import { Appear } from '@/components/Appear';
 import { Button } from '@/components/Button';
 import { ProgressBar, ProgressRing } from '@/components/charts';
 import { Icon, type IconName } from '@/components/Icon';
@@ -30,7 +29,7 @@ import { haptic } from '@/lib/haptics';
 import { refreshCurrentLocation } from '@/lib/location';
 import { requestNotificationPermission, rescheduleNotifications } from '@/lib/notifications';
 import { DEFAULT_PLACE, useApp, type Interest, type NotificationPrefs } from '@/store/app';
-import { EASE_OUT } from '@/theme/motion';
+import { EASE_OUT, stepOut } from '@/theme/motion';
 import { colors, radius, space } from '@/theme/tokens';
 
 const STEPS = ['welcome', 'sun', 'moon', 'ar', 'interests', 'location', 'notifications', 'done'] as const;
@@ -66,6 +65,7 @@ const ALERTS_FOR: Record<Interest, (keyof NotificationPrefs)[]> = {
 export default function Onboarding() {
   const insets = useSafeAreaInsets();
   const [index, setIndex] = useState(0);
+  const [dir, setDir] = useState(1);
   const step = STEPS[index];
   const sky = useSharedValue(-14);
 
@@ -76,15 +76,20 @@ export default function Onboarding() {
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (index === 0) return false;
+      setDir(-1);
       setIndex((i) => Math.max(0, i - 1));
       return true;
     });
     return () => sub.remove();
   }, [index]);
 
-  const next = () => setIndex((i) => Math.min(STEPS.length - 1, i + 1));
+  const next = () => {
+    setDir(1);
+    setIndex((i) => Math.min(STEPS.length - 1, i + 1));
+  };
   const back = () => {
     haptic.soft();
+    setDir(-1);
     setIndex((i) => Math.max(0, i - 1));
   };
 
@@ -104,21 +109,23 @@ export default function Onboarding() {
         <View style={{ width: 40 }} />
       </View>
 
-      <Animated.View key={step} entering={FadeInRight.duration(380).easing(EASE_OUT)} exiting={FadeOutLeft.duration(200)} style={{ flex: 1 }}>
-        {step === 'welcome' && <Welcome onNext={next} />}
-        {step === 'sun' && (
-          <Slide art={<SunArt />} title="Cada minuto de luz" body="Nascer, pôr, hora dourada e hora azul. Arraste o trajeto do sol para ver o céu em qualquer horário." onNext={next} />
-        )}
-        {step === 'moon' && (
-          <Slide art={<MoonArt />} title="A lua, fase a fase" body="Iluminação, nascer e ocaso, superluas e eclipses. Arraste a lua para viajar pelos dias." onNext={next} />
-        )}
-        {step === 'ar' && (
-          <Slide art={<ArArt />} title="Aponte para o céu" body="Levante o celular e veja o caminho exato do sol e da lua sobre a paisagem, a qualquer hora do dia." onNext={next} />
-        )}
-        {step === 'interests' && <Interests onNext={next} />}
-        {step === 'location' && <LocationStep onNext={next} />}
-        {step === 'notifications' && <NotificationsStep onNext={next} />}
-        {step === 'done' && <Done />}
+      <Animated.View key={step} exiting={stepOut(-36 * dir)} style={{ flex: 1 }}>
+        <Appear x={44 * dir} y={0} scale={0.97} duration={680} style={{ flex: 1 }}>
+          {step === 'welcome' && <Welcome onNext={next} />}
+          {step === 'sun' && (
+            <Slide art={<SunArt />} title="Cada minuto de luz" body="Nascer, pôr, hora dourada e hora azul. Arraste o trajeto do sol para ver o céu em qualquer horário." onNext={next} />
+          )}
+          {step === 'moon' && (
+            <Slide art={<MoonArt />} title="A lua, fase a fase" body="Iluminação, nascer e ocaso, superluas e eclipses. Arraste a lua para viajar pelos dias." onNext={next} />
+          )}
+          {step === 'ar' && (
+            <Slide art={<ArArt />} title="Aponte para o céu" body="Levante o celular e veja o caminho exato do sol e da lua sobre a paisagem, a qualquer hora do dia." onNext={next} />
+          )}
+          {step === 'interests' && <Interests onNext={next} />}
+          {step === 'location' && <LocationStep onNext={next} />}
+          {step === 'notifications' && <NotificationsStep onNext={next} />}
+          {step === 'done' && <Done />}
+        </Appear>
       </Animated.View>
     </View>
   );
@@ -126,21 +133,25 @@ export default function Onboarding() {
 
 function Footer({ children }: { children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
-  return <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, space.md) + space.xs }]}>{children}</View>;
+  return (
+    <Appear delay={200} y={18} style={[styles.footer, { paddingBottom: Math.max(insets.bottom, space.md) + space.xs }]}>
+      {children}
+    </Appear>
+  );
 }
 
 function Slide({ art, title, body, onNext }: { art: React.ReactNode; title: string; body: string; onNext: () => void }) {
   return (
     <View style={{ flex: 1 }}>
-      <View style={styles.art}>{art}</View>
-      <View style={styles.copy}>
+      <Appear delay={0} y={0} scale={0.94} duration={760} style={styles.art}>{art}</Appear>
+      <Appear delay={110} y={14} style={styles.copy}>
         <Text variant="title1" align="center">
           {title}
         </Text>
         <Text variant="body" color={colors.textSecondary} align="center">
           {body}
         </Text>
-      </View>
+      </Appear>
       <Footer>
         <Button label="Continuar" onPress={onNext} />
       </Footer>
@@ -159,7 +170,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
   const horizonW = width;
   return (
     <View style={{ flex: 1 }}>
-      <View style={[styles.art, { justifyContent: 'flex-end' }]}>
+      <Appear delay={0} y={0} scale={0.94} duration={760} style={[styles.art, { justifyContent: 'flex-end' }]}>
         <View style={{ width: horizonW, height: 260, alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden' }}>
           <Animated.View style={[{ position: 'absolute', bottom: 40 }, sunStyle]}>
             <SunGlyph size={112} />
@@ -169,16 +180,16 @@ function Welcome({ onNext }: { onNext: () => void }) {
             <Path d={`M0 52 Q ${horizonW * 0.3} 38 ${horizonW * 0.6} 50 T ${horizonW} 46 L ${horizonW} 71 L 0 71 Z`} fill="#060A1C" />
           </Svg>
         </View>
-      </View>
+      </Appear>
       <LinearGradient colors={['#060A1C', 'rgba(6,10,28,0.7)', 'rgba(6,10,28,0)']} locations={[0, 0.45, 1]} style={{ paddingTop: space.lg }}>
-        <View style={styles.copy}>
+        <Appear delay={110} y={14} style={styles.copy}>
           <Text variant="title1" align="center" style={{ fontSize: 38, lineHeight: 44 }}>
             Siga a luz do céu
           </Text>
           <Text variant="body" color={colors.textSecondary} align="center">
             Horários exatos do sol, fases da lua e o caminho dos astros, onde quer que você esteja.
           </Text>
-        </View>
+        </Appear>
         <Footer>
           <Button label="Começar" onPress={onNext} />
         </Footer>
@@ -303,14 +314,14 @@ function Interests({ onNext }: { onNext: () => void }) {
   };
   return (
     <View style={{ flex: 1 }}>
-      <View style={[styles.copy, { marginTop: space.xl }]}>
+      <Appear delay={110} y={14} style={[styles.copy, { marginTop: space.xl }]}>
         <Text variant="title1" align="center">
           O que te faz olhar para cima?
         </Text>
         <Text variant="body" color={colors.textSecondary} align="center">
           Escolha quantos quiser. Vamos ajustar seus lembretes.
         </Text>
-      </View>
+      </Appear>
       <View style={styles.options}>
         <Animated.View entering={FadeIn.delay(80).duration(260)} style={styles.group}>
           {INTERESTS.map((o, i) => (
@@ -391,10 +402,10 @@ function LocationStep({ onNext }: { onNext: () => void }) {
   };
   return (
     <View style={{ flex: 1 }}>
-      <View style={styles.art}>
+      <Appear delay={0} y={0} scale={0.94} duration={760} style={styles.art}>
         <Glyph icon="location" />
-      </View>
-      <View style={styles.copy}>
+      </Appear>
+      <Appear delay={110} y={14} style={styles.copy}>
         <Text variant="title1" align="center">
           {current ? current.name : 'Onde fica o seu céu?'}
         </Text>
@@ -407,7 +418,7 @@ function LocationStep({ onNext }: { onNext: () => void }) {
                 ? 'Os horários já são calculados para onde você está.'
                 : 'Sua localização torna cada horário preciso ao minuto. Ela fica só no seu aparelho.'}
         </Text>
-      </View>
+      </Appear>
       <Footer>
         {current ? (
           <Button label="Continuar" onPress={onNext} />
@@ -449,17 +460,17 @@ function NotificationsStep({ onNext }: { onNext: () => void }) {
   ];
   return (
     <View style={{ flex: 1 }}>
-      <View style={[styles.art, { flex: 0.85 }]}>
+      <Appear delay={0} y={0} scale={0.94} duration={760} style={[styles.art, { flex: 0.85 }]}>
         <Glyph icon="bell" size={88} />
-      </View>
-      <View style={styles.copy}>
+      </Appear>
+      <Appear delay={110} y={14} style={styles.copy}>
         <Text variant="title1" align="center">
           Não perca a melhor luz
         </Text>
         <Text variant="body" color={colors.textSecondary} align="center">
           Avisamos 15 minutos antes. Escolha o que importa para você.
         </Text>
-      </View>
+      </Appear>
       <View style={{ paddingHorizontal: space.md, paddingBottom: space.lg }}>
         <View style={styles.group}>
           {items.map((it, i) => (
@@ -506,19 +517,19 @@ function Done() {
   };
   return (
     <View style={{ flex: 1 }}>
-      <View style={styles.art}>
+      <Appear delay={0} y={0} scale={0.94} duration={760} style={styles.art}>
         <Animated.View style={style}>
           <Glyph icon="sunrise" />
         </Animated.View>
-      </View>
-      <View style={styles.copy}>
+      </Appear>
+      <Appear delay={110} y={14} style={styles.copy}>
         <Text variant="largeTitle" align="center">
           Tudo pronto
         </Text>
         <Text variant="body" color={colors.textSecondary} align="center">
           Seu céu em {place.name} já está calculado. Registre nasceres, pores do sol e luas para formar uma sequência.
         </Text>
-      </View>
+      </Appear>
       <Footer>
         <Button label="Ver meu céu" onPress={finish} />
       </Footer>

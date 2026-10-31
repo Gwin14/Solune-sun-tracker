@@ -1,8 +1,9 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { memo, useEffect, useMemo } from 'react';
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, useWindowDimensions } from 'react-native';
 import Animated, {
   Extrapolation,
+  FadeIn,
   interpolate,
   useAnimatedStyle,
   useReducedMotion,
@@ -51,7 +52,7 @@ export const SkyBackground = memo(function SkyBackground({ altitude, glowX }: Pr
   });
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    <Animated.View entering={FadeIn.duration(900)} style={StyleSheet.absoluteFill} pointerEvents="none">
       {SKY.map((_, i) => (
         <Layer key={i} index={i} altitude={altitude} />
       ))}
@@ -72,7 +73,7 @@ export const SkyBackground = memo(function SkyBackground({ altitude, glowX }: Pr
       <Animated.View style={[StyleSheet.absoluteFill, starsStyle]}>
         <Starfield width={width} height={height} />
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 });
 

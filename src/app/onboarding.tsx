@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
 import { Appear } from '@/components/Appear';
+import { Journey } from '@/components/Journey';
 import { Button } from '@/components/Button';
 import { ProgressBar, ProgressRing } from '@/components/charts';
 import { Icon, type IconName } from '@/components/Icon';
@@ -29,7 +30,7 @@ import { haptic } from '@/lib/haptics';
 import { refreshCurrentLocation } from '@/lib/location';
 import { requestNotificationPermission, rescheduleNotifications } from '@/lib/notifications';
 import { DEFAULT_PLACE, useApp, type Interest, type NotificationPrefs } from '@/store/app';
-import { EASE_OUT, stepOut } from '@/theme/motion';
+import { EASE_OUT } from '@/theme/motion';
 import { colors, radius, space } from '@/theme/tokens';
 
 const STEPS = ['welcome', 'sun', 'moon', 'ar', 'interests', 'location', 'notifications', 'done'] as const;
@@ -65,7 +66,6 @@ const ALERTS_FOR: Record<Interest, (keyof NotificationPrefs)[]> = {
 export default function Onboarding() {
   const insets = useSafeAreaInsets();
   const [index, setIndex] = useState(0);
-  const [dir, setDir] = useState(1);
   const step = STEPS[index];
   const sky = useSharedValue(-14);
 
@@ -76,7 +76,6 @@ export default function Onboarding() {
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (index === 0) return false;
-      setDir(-1);
       setIndex((i) => Math.max(0, i - 1));
       return true;
     });
@@ -84,12 +83,10 @@ export default function Onboarding() {
   }, [index]);
 
   const next = () => {
-    setDir(1);
     setIndex((i) => Math.min(STEPS.length - 1, i + 1));
   };
   const back = () => {
     haptic.soft();
-    setDir(-1);
     setIndex((i) => Math.max(0, i - 1));
   };
 
@@ -97,6 +94,15 @@ export default function Onboarding() {
     <View style={{ flex: 1, backgroundColor: colors.ink }}>
       <SkyBackground altitude={sky} />
       <LinearGradient colors={['rgba(6,10,28,0)', 'rgba(6,10,28,0.72)']} style={styles.scrim} pointerEvents="none" />
+      <Journey
+        count={STEPS.length}
+        index={index}
+        renderStation={(k) => (
+          <Appear delay={k === 0 ? 0 : 820} y={0} duration={760} style={{ flex: 1, paddingTop: insets.top + 52 }}>
+            {renderStep(STEPS[k], next)}
+          </Appear>
+        )}
+      />
       <View style={[styles.top, { paddingTop: insets.top + space.xs }]}>
         <View style={{ width: 40, height: 40 }}>
           {index > 0 && step !== 'done' ? (
@@ -109,26 +115,29 @@ export default function Onboarding() {
         <View style={{ width: 40 }} />
       </View>
 
-      <Animated.View key={step} exiting={stepOut(-36 * dir)} style={{ flex: 1 }}>
-        <Appear x={44 * dir} y={0} scale={0.97} duration={680} style={{ flex: 1 }}>
-          {step === 'welcome' && <Welcome onNext={next} />}
-          {step === 'sun' && (
-            <Slide art={<SunArt />} title="Cada minuto de luz" body="Nascer, pôr, hora dourada e hora azul. Arraste o trajeto do sol para ver o céu em qualquer horário." onNext={next} />
-          )}
-          {step === 'moon' && (
-            <Slide art={<MoonArt />} title="A lua, fase a fase" body="Iluminação, nascer e ocaso, superluas e eclipses. Arraste a lua para viajar pelos dias." onNext={next} />
-          )}
-          {step === 'ar' && (
-            <Slide art={<ArArt />} title="Aponte para o céu" body="Levante o celular e veja o caminho exato do sol e da lua sobre a paisagem, a qualquer hora do dia." onNext={next} />
-          )}
-          {step === 'interests' && <Interests onNext={next} />}
-          {step === 'location' && <LocationStep onNext={next} />}
-          {step === 'notifications' && <NotificationsStep onNext={next} />}
-          {step === 'done' && <Done />}
-        </Appear>
-      </Animated.View>
     </View>
   );
+}
+
+function renderStep(step: Step, next: () => void) {
+  switch (step) {
+    case 'welcome':
+      return <Welcome onNext={next} />;
+    case 'sun':
+      return <Slide art={<SunArt />} title="Cada minuto de luz" body="Nascer, pôr, hora dourada e hora azul. Arraste o trajeto do sol para ver o céu em qualquer horário." onNext={next} />;
+    case 'moon':
+      return <Slide art={<MoonArt />} title="A lua, fase a fase" body="Iluminação, nascer e ocaso, superluas e eclipses. Arraste a lua para viajar pelos dias." onNext={next} />;
+    case 'ar':
+      return <Slide art={<ArArt />} title="Aponte para o céu" body="Levante o celular e veja o caminho exato do sol e da lua sobre a paisagem, a qualquer hora do dia." onNext={next} />;
+    case 'interests':
+      return <Interests onNext={next} />;
+    case 'location':
+      return <LocationStep onNext={next} />;
+    case 'notifications':
+      return <NotificationsStep onNext={next} />;
+    case 'done':
+      return <Done />;
+  }
 }
 
 function Footer({ children }: { children: React.ReactNode }) {

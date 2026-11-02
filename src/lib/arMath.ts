@@ -43,15 +43,57 @@ export function poseFromRotation(alpha: number, beta: number, gamma: number, pla
 
 export type Projector = (az: number, alt: number) => { x: number; y: number; z: number };
 
-/** Pinhole projection centred on the screen. `vfov` is the vertical field of view. */
-export function makeProjector(pose: Pose, width: number, height: number, vfov: number): Projector {
+/**
+ * Projects an [east, north, up] unit vector. Returns screen x/y and camera depth z;
+ * x/y are NaN behind the camera. Hot path for the planetarium, so it allocates nothing
+ * when given an output object.
+ */
+export type VecProjector = (e: number, n: number, u: number, out?: { x: number; y: number; z: number }) => { x: number; y: number; z: number };
+
+export function makeVecProjector(pose: Pose, width: number, height: number, vfov: number): VecProjector & { focal: number } {
   const a = pose.az * D2R;
-  const e = pose.alt * D2R;
+  const el = pose.alt * D2R;
   const sa = Math.sin(a);
   const ca = Math.cos(a);
-  const se = Math.sin(e);
-  const ce = Math.cos(e);
+  const se = Math.sin(el);
+  const ce = Math.cos(el);
   // ENU basis for the camera.
+  const f0 = sa * ce, f1 = ca * ce, f2 = se;
+  const r0 = ca, r1 = -sa;
+  const u0 = -se * sa, u1 = -se * ca, u2 = ce;
+  const focal = height / 2 / Math.tan((vfov * D2R) / 2);
+  const rho = pose.roll * D2R;
+  const cr = Math.cos(rho);
+  const sr = Math.sin(rho);
+  const cx = width / 2;
+  const cy = height / 2;
+  const fn = (e: number, n: number, u: number, out = { x: 0, y: 0, z: 0 }) => {
+    const x = e * r0 + n * r1;
+    const y = e * u0 + n * u1 + u * u2;
+    const z = e * f0 + n * f1 + u * f2;
+    out.z = z;
+    if (z <= 0.02) {
+      out.x = NaN;
+      out.y = NaN;
+      return out;
+    }
+    const sx = (x / z) * focal;
+    const sy = -(y / z) * focal;
+    out.x = cx + sx * cr - sy * sr;
+    out.y = cy + sx * sr + sy * cr;
+    return out;
+  };
+  return Object.assign(fn, { focal });
+}
+
+/** Inverse of makeVecProjector: the [east, north, up] direction under a screen point. */
+export function makeUnprojector(pose: Pose, width: number, height: number, vfov: number) {
+  const a = pose.az * D2R;
+  const el = pose.alt * D2R;
+  const sa = Math.sin(a);
+  const ca = Math.cos(a);
+  const se = Math.sin(el);
+  const ce = Math.cos(el);
   const f = [sa * ce, ca * ce, se];
   const r = [ca, -sa, 0];
   const u = [-se * sa, -se * ca, ce];
@@ -59,21 +101,24 @@ export function makeProjector(pose: Pose, width: number, height: number, vfov: n
   const rho = pose.roll * D2R;
   const cr = Math.cos(rho);
   const sr = Math.sin(rho);
-  const cx = width / 2;
-  const cy = height / 2;
+  return (x: number, y: number): [number, number, number] => {
+    const dx = x - width / 2;
+    const dy = y - height / 2;
+    const sx = (dx * cr + dy * sr) / focal;
+    const sy = (-dx * sr + dy * cr) / focal;
+    const v = [f[0] + sx * r[0] - sy * u[0], f[1] + sx * r[1] - sy * u[1], f[2] + sx * r[2] - sy * u[2]];
+    const l = Math.hypot(v[0], v[1], v[2]);
+    return [v[0] / l, v[1] / l, v[2] / l];
+  };
+}
+
+/** Pinhole projection centred on the screen. `vfov` is the vertical field of view. */
+export function makeProjector(pose: Pose, width: number, height: number, vfov: number): Projector {
+  const project = makeVecProjector(pose, width, height, vfov);
   return (paz: number, palt: number) => {
     const pa = paz * D2R;
     const pe = palt * D2R;
-    const px = Math.sin(pa) * Math.cos(pe);
-    const py = Math.cos(pa) * Math.cos(pe);
-    const pz = Math.sin(pe);
-    const x = px * r[0] + py * r[1] + pz * r[2];
-    const y = px * u[0] + py * u[1] + pz * u[2];
-    const z = px * f[0] + py * f[1] + pz * f[2];
-    if (z <= 0.02) return { x: NaN, y: NaN, z };
-    const sx = (x / z) * focal;
-    const sy = -(y / z) * focal;
-    return { x: cx + sx * cr - sy * sr, y: cy + sx * sr + sy * cr, z };
+    return project(Math.sin(pa) * Math.cos(pe), Math.cos(pa) * Math.cos(pe), Math.sin(pe));
   };
 }
 

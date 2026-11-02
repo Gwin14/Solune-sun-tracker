@@ -56,6 +56,18 @@ const ICONS = {
   info: { ios: 'info.circle.fill', android: 'info', web: 'info' },
   thermometer: { ios: 'thermometer.sun.fill', android: 'thermostat', web: 'thermostat' },
   trophy: { ios: 'trophy.fill', android: 'emoji_events', web: 'emoji_events' },
+  star: { ios: 'star.fill', android: 'star', web: 'star' },
+  constellation: { ios: 'point.3.connected.trianglepath.dotted', android: 'scatter_plot', web: 'scatter_plot' },
+  galaxy: { ios: 'hurricane', android: 'cyclone', web: 'cyclone' },
+  play: { ios: 'play.fill', android: 'play_arrow', web: 'play_arrow' },
+  pause: { ios: 'pause.fill', android: 'pause', web: 'pause' },
+  target: { ios: 'scope', android: 'my_location', web: 'my_location' },
+  mountain: { ios: 'mountain.2.fill', android: 'landscape', web: 'landscape' },
+  atmosphere: { ios: 'cloud.sun.fill', android: 'partly_cloudy_day', web: 'partly_cloudy_day' },
+  trails: { ios: 'circle.dashed', android: 'track_changes', web: 'track_changes' },
+  text: { ios: 'textformat', android: 'text_fields', web: 'text_fields' },
+  ecliptic: { ios: 'circle.and.line.horizontal', android: 'show_chart', web: 'show_chart' },
+  nightVision: { ios: 'eye.circle.fill', android: 'remove_red_eye', web: 'remove_red_eye' },
 } as const satisfies Record<string, SymbolName>;
 
 export type IconName = keyof typeof ICONS;

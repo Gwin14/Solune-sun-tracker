@@ -25,6 +25,39 @@ export type NotificationPrefs = {
   leadMinutes: 0 | 15 | 30;
 };
 
+/** Planetarium layers and display options, remembered between visits. */
+export type PlanetariumPrefs = {
+  lines: boolean;
+  labels: boolean;
+  milkyWay: boolean;
+  planets: boolean;
+  deepSky: boolean;
+  ecliptic: boolean;
+  trails: boolean;
+  /** Opaque ground: hides what is below the horizon. */
+  ground: boolean;
+  /** Daylight washes out the stars, like the real sky. */
+  atmosphere: boolean;
+  /** Keep the live camera image behind the stars while pointing the phone. */
+  cameraFeed: boolean;
+  /** Red-only display that keeps your eyes adapted to the dark. */
+  nightVision: boolean;
+};
+
+export const DEFAULT_PLANETARIUM: PlanetariumPrefs = {
+  lines: true,
+  labels: true,
+  milkyWay: true,
+  planets: true,
+  deepSky: true,
+  ecliptic: false,
+  trails: false,
+  ground: true,
+  atmosphere: false,
+  cameraFeed: false,
+  nightVision: false,
+};
+
 type State = {
   hydrated: boolean;
   hasOnboarded: boolean;
@@ -42,6 +75,7 @@ type State = {
   arSessions: number;
   lastArDay: string | null;
   celebrationQueue: string[];
+  planetarium: PlanetariumPrefs;
 };
 
 type Actions = {
@@ -60,6 +94,7 @@ type Actions = {
   checkIn: (kind: CheckInKind, tz: string | undefined, moonIllum?: number) => boolean;
   logArSession: () => void;
   shiftCelebration: () => void;
+  setPlanetarium: (p: Partial<PlanetariumPrefs>) => void;
   evaluateBadges: () => void;
 };
 
@@ -104,6 +139,7 @@ export const useApp = create<State & Actions>()(
       arSessions: 0,
       lastArDay: null,
       celebrationQueue: [],
+      planetarium: DEFAULT_PLANETARIUM,
 
       setHydrated: () => set({ hydrated: true }),
       completeOnboarding: () => {
@@ -145,6 +181,7 @@ export const useApp = create<State & Actions>()(
         get().evaluateBadges();
       },
       shiftCelebration: () => set((s) => ({ celebrationQueue: s.celebrationQueue.slice(1) })),
+      setPlanetarium: (p) => set((s) => ({ planetarium: { ...DEFAULT_PLANETARIUM, ...s.planetarium, ...p } })),
       evaluateBadges: () => {
         const s = get();
         const ctx = badgeContext(s);

@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { BADGES, bestStreak, computeStreak, XP, type BadgeContext, type CheckIn, type CheckInKind } from '@/lib/achievements';
 import { dayKey, shiftKey } from '@/astro/time';
+import { strings } from '@/i18n';
 
 export type SavedPlace = {
   id: string;
@@ -101,10 +102,13 @@ type Actions = {
   evaluateBadges: () => void;
 };
 
+/** Shown until the user shares a location or picks a city. The region follows the language. */
 export const DEFAULT_PLACE: SavedPlace = {
   id: 'default',
   name: 'São Paulo',
-  region: 'SP, Brasil',
+  get region() {
+    return `SP, ${strings().places.Brasil ?? 'Brasil'}`;
+  },
   latitude: -23.5505,
   longitude: -46.6333,
   tz: 'America/Sao_Paulo',

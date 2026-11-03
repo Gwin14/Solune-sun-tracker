@@ -1,0 +1,16 @@
+{
+  "Quando o sol se põe no ${applicationName}": "Cuándo se pone el sol en ${applicationName}",
+  "Que horas é o pôr do sol no ${applicationName}": "A qué hora es el atardecer en ${applicationName}",
+  "Pôr do sol no ${applicationName}": "Atardecer en ${applicationName}",
+  "Quando o sol nasce no ${applicationName}": "Cuándo sale el sol en ${applicationName}",
+  "Nascer do sol no ${applicationName}": "Amanecer en ${applicationName}",
+  "Quando é a hora dourada no ${applicationName}": "Cuándo es la hora dorada en ${applicationName}",
+  "Hora dourada no ${applicationName}": "Hora dorada en ${applicationName}",
+  "Qual a fase da lua no ${applicationName}": "Qué fase tiene la luna en ${applicationName}",
+  "Como está a lua no ${applicationName}": "Cómo está la luna en ${applicationName}",
+  "Acompanhar a hora dourada no ${applicationName}": "Seguir la hora dorada en ${applicationName}",
+  "Acompanhar ${moment} no ${applicationName}": "Seguir ${moment} en ${applicationName}",
+  "Ver o céu no ${applicationName}": "Ver el cielo en ${applicationName}",
+  "Onde está o sol no ${applicationName}": "Dónde está el sol en ${applicationName}",
+  "Registrar o céu no ${applicationName}": "Registrar el cielo en ${applicationName}"
+}

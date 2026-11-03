@@ -30,7 +30,7 @@ export default function LockWidget(props: LockWidgetProps, env: WidgetEnvironmen
       return (
         <HStack modifiers={[widgetURL(url)]}>
           <Image systemName="sun.horizon.fill" />
-          <Text>{`Dourada ${props.golden.window}`}</Text>
+          <Text>{`${props.golden.short} ${props.golden.window}`}</Text>
         </HStack>
       );
     }

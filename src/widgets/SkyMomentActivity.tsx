@@ -27,7 +27,7 @@ export default function SkyMomentActivity(props: SkyMomentProps, env: LiveActivi
   const title = (
     <VStack alignment="leading" spacing={1}>
       <Text modifiers={[font({ size: 15, weight: 'semibold' }), lineLimit(1)]}>{props.title}</Text>
-      <Text modifiers={[font({ size: 13 }), secondary, lineLimit(1)]}>{env.isStale ? 'Encerrado' : props.caption}</Text>
+      <Text modifiers={[font({ size: 13 }), secondary, lineLimit(1)]}>{env.isStale ? props.labels.ended : props.caption}</Text>
     </VStack>
   );
 
@@ -53,7 +53,7 @@ export default function SkyMomentActivity(props: SkyMomentProps, env: LiveActivi
           <Spacer />
           <VStack alignment="trailing" spacing={0}>
             {countdown(28)}
-            <Text modifiers={[font({ size: 11, weight: 'medium' }), secondary]}>{started ? 'restantes' : 'para começar'}</Text>
+            <Text modifiers={[font({ size: 11, weight: 'medium' }), secondary]}>{started ? props.labels.remaining : props.labels.untilStart}</Text>
           </VStack>
         </HStack>
         {bar}

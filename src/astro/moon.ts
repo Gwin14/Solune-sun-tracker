@@ -1,5 +1,7 @@
 import * as A from 'astronomy-engine';
 
+import { localized, strings } from '@/i18n';
+
 import { observer, type Place } from './sun';
 import { addDays } from './time';
 
@@ -15,27 +17,9 @@ export type PhaseKey =
   | 'lastQuarter'
   | 'waningCrescent';
 
-export const PHASE_LABEL: Record<PhaseKey, string> = {
-  new: 'Lua nova',
-  waxingCrescent: 'Lua crescente',
-  firstQuarter: 'Quarto crescente',
-  waxingGibbous: 'Gibosa crescente',
-  full: 'Lua cheia',
-  waningGibbous: 'Gibosa minguante',
-  lastQuarter: 'Quarto minguante',
-  waningCrescent: 'Lua minguante',
-};
+export const PHASE_LABEL: Record<PhaseKey, string> = localized((s) => s.moon.phase);
 
-export const PHASE_HINT: Record<PhaseKey, string> = {
-  new: 'Céu escuro, ideal para ver estrelas e a Via Láctea.',
-  waxingCrescent: 'Um fino arco aparece no oeste logo após o pôr do sol.',
-  firstQuarter: 'Metade iluminada. Crateras ficam nítidas no terminador.',
-  waxingGibbous: 'Quase cheia. Brilha a maior parte da noite.',
-  full: 'Disco inteiro iluminado, nasce junto com o pôr do sol.',
-  waningGibbous: 'Começa a minguar e nasce cada vez mais tarde.',
-  lastQuarter: 'Metade iluminada, visível de madrugada e pela manhã.',
-  waningCrescent: 'Arco fino no leste, pouco antes do nascer do sol.',
-};
+export const PHASE_HINT: Record<PhaseKey, string> = localized((s) => s.moon.phaseHint);
 
 const QUARTER_KEYS: PhaseKey[] = ['new', 'firstQuarter', 'full', 'lastQuarter'];
 
@@ -100,18 +84,14 @@ export function nextQuarters(from: Date, count = 8): QuarterEvent[] {
   return out;
 }
 
-const FULL_MOON_NAMES = [
-  'Lua do Lobo', 'Lua da Neve', 'Lua da Minhoca', 'Lua Rosa', 'Lua das Flores', 'Lua do Morango',
-  'Lua do Cervo', 'Lua do Esturjão', 'Lua do Milho', 'Lua do Caçador', 'Lua do Castor', 'Lua Fria',
-];
-
 export function fullMoonName(date: Date, month: number, isBlueMoon: boolean): string {
-  if (isBlueMoon) return 'Lua Azul';
+  const names = strings().moon.fullMoonNames;
+  if (isBlueMoon) return names.blue;
   // The full moon closest to the September equinox is the Harvest Moon.
   const y = date.getUTCFullYear();
   const equinox = A.Seasons(y).sep_equinox.date.getTime();
-  if (Math.abs(date.getTime() - equinox) < 15 * 86_400_000) return 'Lua da Colheita';
-  return FULL_MOON_NAMES[month];
+  if (Math.abs(date.getTime() - equinox) < 15 * 86_400_000) return names.harvest;
+  return names.months[month];
 }
 
 export const SUPERMOON_KM = 361_000;

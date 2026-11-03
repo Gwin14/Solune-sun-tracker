@@ -6,6 +6,7 @@ import { altAz, horizonFrame, planViewing, PLANETS, rotateInto, type ViewingPlan
 import { describeTarget, kindOf, targetEqjAt, type TargetId } from '@/astro/sky/targets';
 import { observer } from '@/astro/sun';
 import { addDays, startOfDay } from '@/astro/time';
+import { strings } from '@/i18n';
 import type { SavedPlace } from '@/store/app';
 
 import { moonSymbol, NIGHT_BG, sunDayFor } from './data';
@@ -67,22 +68,23 @@ export function trackTargets(ctx: Ctx, ids: string[], now: Date): Tracked[] {
 
 function rowAt(tr: Tracked, ctx: Ctx, at: Date, rot: number[][]): SkyObjectRow & { alt: number } {
   const t = (d: Date) => formatTime(d, ctx.place.tz, ctx.use24h);
+  const tx = strings().widgets;
   const url = `solune://object/${encodeURIComponent(tr.id)}`;
   // The darkest moment means nothing for the Sun and Moon themselves.
   const timed = tr.id !== 'moon' && tr.id !== 'sun';
-  const best = timed && tr.plan?.best && tr.plan.best.time.getTime() > at.getTime() ? `Melhor ${t(tr.plan.best.time)}` : '';
+  const best = timed && tr.plan?.best && tr.plan.best.time.getTime() > at.getTime() ? tx.best(t(tr.plan.best.time)) : '';
   if (!tr.eqjAt) {
     // The celestial pole never moves: it sits at the latitude's height all night.
     const alt = Math.abs(ctx.place.latitude);
-    return { id: tr.id, name: tr.name, color: tr.color, symbol: tr.symbol, status: `Fixo a ${formatDegrees(alt)}`, best: '', up: true, url, alt };
+    return { id: tr.id, name: tr.name, color: tr.color, symbol: tr.symbol, status: tx.fixedAt(formatDegrees(alt)), best: '', up: true, url, alt };
   }
   const v = rotateInto(rot, tr.eqjAt(at), new Float64Array(3));
   const { alt, az } = altAz(v[0], v[1], v[2]);
   let status: string;
   if (alt > 0) status = `${formatDegrees(alt)} ${compassPoint(az)}`;
-  else if (tr.plan?.neverUp) status = 'Não nasce hoje';
-  else if (tr.plan?.rise && tr.plan.rise.getTime() > at.getTime()) status = `Nasce ${t(tr.plan.rise)}`;
-  else status = 'Abaixo do horizonte';
+  else if (tr.plan?.neverUp) status = tx.noRiseToday;
+  else if (tr.plan?.rise && tr.plan.rise.getTime() > at.getTime()) status = tx.risesAtShort(t(tr.plan.rise));
+  else status = strings().target.belowHorizon;
   return { id: tr.id, name: tr.name, color: tr.color, symbol: tr.symbol, status, best, up: alt > 0, url, alt };
 }
 
@@ -115,19 +117,21 @@ export function tonightProps(ctx: Ctx, at: Date, planets: Tracked[]): TonightWid
   const dawn = morning.astronomical.start;
   const st = moonState(at);
   const illum = Math.round(st.illumination * 100);
+  const tx = strings().widgets;
   return {
     place: place.name,
-    dark: dusk && dawn ? `${t(dusk)}–${t(dawn)}` : 'Sem noite escura',
-    darkLabel: dusk && dawn ? (at.getTime() >= dusk.getTime() && at.getTime() < dawn.getTime() ? 'Céu escuro agora' : 'Céu escuro') : 'O sol não desce 18° hoje',
-    moon: `Lua ${illum}% · ${illum > 60 ? 'clareia o céu' : illum > 25 ? 'atrapalha pouco' : 'céu favorável'}`,
+    dark: dusk && dawn ? `${t(dusk)}–${t(dawn)}` : tx.noDarkNight,
+    darkLabel: dusk && dawn ? (at.getTime() >= dusk.getTime() && at.getTime() < dawn.getTime() ? tx.darkNow : tx.dark) : tx.noAstroDark,
+    moon: `${strings().sky.moon} ${illum}% · ${illum > 60 ? tx.moonBright : illum > 25 ? tx.moonSome : tx.moonFavorable}`,
     moonSymbol: moonSymbol(st.key, place.latitude),
     rows: rowsAt(planets, ctx, at).map(strip),
     bg: NIGHT_BG,
+    labels: tx.tonight,
   };
 }
 
 export function favoritesProps(ctx: Ctx, at: Date, favorites: Tracked[]): FavoritesWidgetProps {
   // What is up comes first, highest first; then what rises soonest.
   const rows = rowsAt(favorites, ctx, at).sort((a, b) => (a.up === b.up ? (a.up ? b.alt - a.alt : 0) : a.up ? -1 : 1));
-  return { rows: rows.map(strip), bg: NIGHT_BG };
+  return { rows: rows.map(strip), bg: NIGHT_BG, labels: strings().widgets.favorites };
 }

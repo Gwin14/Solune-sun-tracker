@@ -7,7 +7,8 @@ import type { Place } from '@/astro/sun';
 export function dayMemo<T, P extends Place = Place>(size: number, compute: (place: P, start: Date) => T) {
   const cache = new Map<string, T>();
   return (place: P, start: Date): T => {
-    const key = `${place.latitude},${place.longitude},${start.getTime()}`;
+    // Text-bearing results also vary by language, which such callers pass as `lang`.
+    const key = `${place.latitude},${place.longitude},${start.getTime()},${(place as { lang?: string }).lang ?? ''}`;
     let v = cache.get(key);
     if (v === undefined) {
       v = compute(place, start);

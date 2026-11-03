@@ -38,7 +38,7 @@ export default function EventWidget(props: EventWidgetProps, env: WidgetEnvironm
       <HStack spacing={14} modifiers={[background, widgetURL('solune://events')]}>
         {lead}
         <VStack alignment="leading" spacing={6}>
-          <Text modifiers={[font({ size: 11, weight: 'semibold' }), tertiary]}>Depois</Text>
+          <Text modifiers={[font({ size: 11, weight: 'semibold' }), tertiary]}>{props.labels.later}</Text>
           {props.following.map((e, i) => (
             <VStack key={i} alignment="leading" spacing={1}>
               {i ? <Divider /> : null}

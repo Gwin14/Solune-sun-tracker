@@ -1,10 +1,14 @@
 import * as A from 'astronomy-engine';
 
+import { formatNumber } from './format';
 import { fullMoonName, moonState, SUPERMOON_KM } from './moon';
 import { moonPosition, observer, sunPosition, type Place } from './sun';
+import { language, strings, type Strings } from '@/i18n';
 import { dayMemo } from '@/lib/dayMemo';
 
 import { DAY_MS, wallClock } from './time';
+
+type MeteorShower = keyof Strings['events']['showers'];
 
 export type SkyEventKind = 'season' | 'lunarEclipse' | 'solarEclipse' | 'fullMoon' | 'meteor' | 'supermoon';
 
@@ -18,22 +22,16 @@ export type SkyEvent = {
   detail?: string;
 };
 
-const ECLIPSE_KIND: Record<string, string> = {
-  penumbral: 'penumbral',
-  partial: 'parcial',
-  annular: 'anular',
-  total: 'total',
-};
-
-const METEOR_SHOWERS: { name: string; month: number; day: number; zhr: number; radiant: string }[] = [
-  { name: 'Quadrântidas', month: 0, day: 3, zhr: 110, radiant: 'Boieiro' },
-  { name: 'Líridas', month: 3, day: 22, zhr: 18, radiant: 'Lira' },
-  { name: 'Eta Aquáridas', month: 4, day: 6, zhr: 50, radiant: 'Aquário' },
-  { name: 'Delta Aquáridas', month: 6, day: 30, zhr: 25, radiant: 'Aquário' },
-  { name: 'Perseidas', month: 7, day: 12, zhr: 100, radiant: 'Perseu' },
-  { name: 'Oriônidas', month: 9, day: 21, zhr: 20, radiant: 'Órion' },
-  { name: 'Leônidas', month: 10, day: 17, zhr: 15, radiant: 'Leão' },
-  { name: 'Geminídeas', month: 11, day: 14, zhr: 150, radiant: 'Gêmeos' },
+/** Peak dates of the major annual showers; names and radiants come from the dictionary. */
+const METEOR_SHOWERS: { id: MeteorShower; month: number; day: number; zhr: number }[] = [
+  { id: 'quadrantids', month: 0, day: 3, zhr: 110 },
+  { id: 'lyrids', month: 3, day: 22, zhr: 18 },
+  { id: 'etaAquariids', month: 4, day: 6, zhr: 50 },
+  { id: 'deltaAquariids', month: 6, day: 30, zhr: 25 },
+  { id: 'perseids', month: 7, day: 12, zhr: 100 },
+  { id: 'orionids', month: 9, day: 21, zhr: 20 },
+  { id: 'leonids', month: 10, day: 17, zhr: 15 },
+  { id: 'geminids', month: 11, day: 14, zhr: 150 },
 ];
 
 export function upcomingEvents(place: Place, from: Date, horizonDays = 400): SkyEvent[] {
@@ -41,6 +39,7 @@ export function upcomingEvents(place: Place, from: Date, horizonDays = 400): Sky
   const until = from.getTime() + horizonDays * DAY_MS;
   const south = place.latitude < 0;
   const events: SkyEvent[] = [];
+  const tx = strings().events;
   const inRange = (d: Date) => d.getTime() >= from.getTime() && d.getTime() <= until;
 
   // Seasons
@@ -48,10 +47,10 @@ export function upcomingEvents(place: Place, from: Date, horizonDays = 400): Sky
   for (const y of [year, year + 1]) {
     const s = A.Seasons(y);
     const list: [Date, string, string][] = [
-      [s.mar_equinox.date, south ? 'Equinócio de outono' : 'Equinócio de primavera', 'Dia e noite quase iguais em todo o planeta.'],
-      [s.jun_solstice.date, south ? 'Solstício de inverno' : 'Solstício de verão', south ? 'O dia mais curto do ano por aqui.' : 'O dia mais longo do ano por aqui.'],
-      [s.sep_equinox.date, south ? 'Equinócio de primavera' : 'Equinócio de outono', 'Dia e noite quase iguais em todo o planeta.'],
-      [s.dec_solstice.date, south ? 'Solstício de verão' : 'Solstício de inverno', south ? 'O dia mais longo do ano por aqui.' : 'O dia mais curto do ano por aqui.'],
+      [s.mar_equinox.date, south ? tx.autumnEquinox : tx.springEquinox, tx.equinoxNote],
+      [s.jun_solstice.date, south ? tx.winterSolstice : tx.summerSolstice, south ? tx.shortestDay : tx.longestDay],
+      [s.sep_equinox.date, south ? tx.springEquinox : tx.autumnEquinox, tx.equinoxNote],
+      [s.dec_solstice.date, south ? tx.summerSolstice : tx.winterSolstice, south ? tx.longestDay : tx.shortestDay],
     ];
     for (const [d, title, subtitle] of list) {
       if (inRange(d)) events.push({ id: `season-${d.getTime()}`, kind: 'season', title, subtitle, date: d });
@@ -65,10 +64,10 @@ export function upcomingEvents(place: Place, from: Date, horizonDays = 400): Sky
     events.push({
       id: `lunar-${le.peak.date.getTime()}`,
       kind: 'lunarEclipse',
-      title: `Eclipse lunar ${ECLIPSE_KIND[le.kind]}`,
-      subtitle: visible ? 'Visível da sua localização' : 'Abaixo do horizonte aqui',
+      title: tx.lunarEclipse(le.kind),
+      subtitle: visible ? tx.visibleFromHere : tx.belowHorizonHere,
       visibleHere: visible,
-      detail: le.sd_total > 0 ? `Totalidade de ${Math.round(le.sd_total * 2)} min` : `Duração de ${Math.round(le.sd_penum * 2)} min`,
+      detail: le.sd_total > 0 ? tx.totality(Math.round(le.sd_total * 2)) : tx.eclipseDuration(Math.round(le.sd_penum * 2)),
       date: le.peak.date,
     });
     le = A.NextLunarEclipse(le.peak);
@@ -88,8 +87,8 @@ export function upcomingEvents(place: Place, from: Date, horizonDays = 400): Sky
     events.push({
       id: `solar-${ge.peak.date.getTime()}`,
       kind: 'solarEclipse',
-      title: `Eclipse solar ${ECLIPSE_KIND[ge.kind]}`,
-      subtitle: visible ? 'Parcialmente visível daqui' : 'Visível em outras regiões',
+      title: tx.solarEclipse(ge.kind),
+      subtitle: visible ? tx.partlyVisibleHere : tx.visibleElsewhere,
       visibleHere: visible && sun.alt > 0,
       date: ge.peak.date,
     });
@@ -112,9 +111,9 @@ export function upcomingEvents(place: Place, from: Date, horizonDays = 400): Sky
       events.push({
         id: `full-${d.getTime()}`,
         kind: isSuper ? 'supermoon' : 'fullMoon',
-        title: isSuper ? `Superlua · ${fullMoonName(d, w.month, count > 1)}` : fullMoonName(d, w.month, count > 1),
-        subtitle: isSuper ? 'A lua cheia mais próxima, até 14% maior' : 'Lua cheia',
-        detail: `${Math.round(dist).toLocaleString('pt-BR')} km da Terra`,
+        title: isSuper ? tx.supermoon(fullMoonName(d, w.month, count > 1)) : fullMoonName(d, w.month, count > 1),
+        subtitle: isSuper ? tx.supermoonNote : tx.fullMoon,
+        detail: tx.kmFromEarth(formatNumber(dist)),
         date: d,
       });
     }
@@ -127,12 +126,13 @@ export function upcomingEvents(place: Place, from: Date, horizonDays = 400): Sky
       const d = new Date(Date.UTC(y, m.month, m.day, 4));
       if (!inRange(d)) continue;
       const illum = moonState(d).illumination;
+      const shower = tx.showers[m.id];
       events.push({
-        id: `meteor-${m.name}-${y}`,
+        id: `meteor-${m.id}-${y}`,
         kind: 'meteor',
-        title: `Chuva de meteoros ${m.name}`,
-        subtitle: `Até ${m.zhr} meteoros/h · radiante em ${m.radiant}`,
-        detail: illum > 0.6 ? 'Lua brilhante vai atrapalhar' : 'Lua favorável, céu escuro',
+        title: tx.meteorShower(shower.name),
+        subtitle: tx.meteorRate(m.zhr, shower.radiant),
+        detail: illum > 0.6 ? tx.brightMoon : tx.darkMoon,
         date: d,
       });
     }
@@ -141,5 +141,7 @@ export function upcomingEvents(place: Place, from: Date, horizonDays = 400): Sky
   return events.sort((a, b) => a.date.getTime() - b.date.getTime());
 }
 
+const eventsMemo = dayMemo(2, (place: Place & { lang: string }, start: Date) => upcomingEvents(place, start));
+
 /** The default 400-day scan from a local day's start, shared by the Events tab and the widgets. */
-export const upcomingEventsForDay = dayMemo(2, (place: Place, start: Date) => upcomingEvents(place, start));
+export const upcomingEventsForDay = (place: Place, start: Date) => eventsMemo({ ...place, lang: language() }, start);

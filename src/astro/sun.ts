@@ -1,5 +1,7 @@
 import * as A from 'astronomy-engine';
 
+import { localized } from '@/i18n';
+
 import { addDays, DAY_MS, MIN_MS } from './time';
 
 export type Place = { latitude: number; longitude: number; tz?: string };
@@ -152,12 +154,4 @@ export function lightPhase(alt: number): LightPhase {
   return 'night';
 }
 
-export const LIGHT_PHASE_LABEL: Record<LightPhase, string> = {
-  day: 'Luz do dia',
-  golden: 'Hora dourada',
-  blue: 'Hora azul',
-  civil: 'Crepúsculo civil',
-  nautical: 'Crepúsculo náutico',
-  astronomical: 'Crepúsculo astronômico',
-  night: 'Noite',
-};
+export const LIGHT_PHASE_LABEL: Record<LightPhase, string> = localized((s) => s.sun.phase);

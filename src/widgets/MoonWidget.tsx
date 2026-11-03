@@ -32,14 +32,14 @@ export default function MoonWidget(props: MoonWidgetProps, env: WidgetEnvironmen
           {glyph(52)}
           <Spacer />
           <Text modifiers={[font({ size: 15, weight: 'semibold' }), lineLimit(2)]}>{props.phase}</Text>
-          <Text modifiers={[font({ size: 12, weight: 'medium' }), secondary]}>{`${props.illumination}% iluminada`}</Text>
+          <Text modifiers={[font({ size: 12, weight: 'medium' }), secondary]}>{props.labels.lit}</Text>
         </VStack>
         <VStack alignment="leading" spacing={7}>
-          {row('Nasce', props.rise)}
-          {row('Põe', props.set)}
+          {row(props.labels.rises, props.rise)}
+          {row(props.labels.sets, props.set)}
           <Divider />
-          {row('Cheia', props.nextFull, props.nextFullIn)}
-          {row('Nova', props.nextNew, props.nextNewIn)}
+          {row(props.labels.full, props.nextFull, props.nextFullIn)}
+          {row(props.labels.new, props.nextNew, props.nextNewIn)}
         </VStack>
       </HStack>
     );
@@ -54,7 +54,7 @@ export default function MoonWidget(props: MoonWidgetProps, env: WidgetEnvironmen
       </HStack>
       <Spacer />
       <Text modifiers={[font({ size: 15, weight: 'semibold' }), lineLimit(2)]}>{props.phase}</Text>
-      <Text modifiers={[font({ size: 12, weight: 'medium' }), secondary, lineLimit(1)]}>{`Cheia ${props.nextFullIn}`}</Text>
+      <Text modifiers={[font({ size: 12, weight: 'medium' }), secondary, lineLimit(1)]}>{`${props.labels.full} ${props.nextFullIn}`}</Text>
     </VStack>
   );
 }

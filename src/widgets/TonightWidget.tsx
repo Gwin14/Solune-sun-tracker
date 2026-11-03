@@ -54,7 +54,7 @@ export default function TonightWidget(props: TonightWidgetProps, env: WidgetEnvi
     </Link>
   );
 
-  const empty = <Text modifiers={[font({ size: 12 }), secondary, lineLimit(2)]}>Nenhum planeta a olho nu esta noite.</Text>;
+  const empty = <Text modifiers={[font({ size: 12 }), secondary, lineLimit(2)]}>{props.labels.empty}</Text>;
 
   if (family === 'systemSmall') {
     const first = props.rows[0];
@@ -99,7 +99,7 @@ export default function TonightWidget(props: TonightWidgetProps, env: WidgetEnvi
         <Spacer />
       </HStack>
       <Divider />
-      <Text modifiers={[font({ size: 11, weight: 'semibold' }), tertiary]}>Planetas esta noite</Text>
+      <Text modifiers={[font({ size: 11, weight: 'semibold' }), tertiary]}>{props.labels.title}</Text>
       <VStack alignment="leading" spacing={8}>{rows.length ? rows.map(row) : empty}</VStack>
       <Spacer />
     </VStack>

@@ -4,6 +4,7 @@ import { formatTime } from '@/astro/format';
 import { nextQuarters } from '@/astro/moon';
 import { computeSunDay } from '@/astro/sun';
 import { addDays, MIN_MS, startOfDay } from '@/astro/time';
+import { strings } from '@/i18n';
 import { selectPlace, useApp } from '@/store/app';
 
 let handlerSet = false;
@@ -50,26 +51,28 @@ export async function rescheduleNotifications(): Promise<number> {
     const lead = prefs.leadMinutes * MIN_MS;
     const now = Date.now();
     const jobs: { at: number; title: string; body: string }[] = [];
-    const leadText = prefs.leadMinutes ? `em ${prefs.leadMinutes} min` : 'agora';
+    const tx = strings().notifications;
+    const leadMin = prefs.leadMinutes;
+    const at = (d: Date | null) => formatTime(d, place.tz, s.use24h);
 
     let day = startOfDay(new Date(), place.tz);
     for (let i = 0; i < 7; i++) {
       const d = computeSunDay(place, day);
       if (prefs.sunrise && d.sunrise)
-        jobs.push({ at: d.sunrise.getTime() - lead, title: 'O sol nasce ' + leadText, body: `Nascer às ${formatTime(d.sunrise, place.tz, s.use24h)} em ${place.name}.` });
+        jobs.push({ at: d.sunrise.getTime() - lead, title: tx.sunriseTitle(leadMin), body: tx.sunriseBody(at(d.sunrise), place.name) });
       if (prefs.sunset && d.sunset)
-        jobs.push({ at: d.sunset.getTime() - lead, title: 'Pôr do sol ' + leadText, body: `O sol se põe às ${formatTime(d.sunset, place.tz, s.use24h)}. Vale olhar para o oeste.` });
+        jobs.push({ at: d.sunset.getTime() - lead, title: tx.sunsetTitle(leadMin), body: tx.sunsetBody(at(d.sunset)) });
       if (prefs.golden && d.goldenEvening.start)
         jobs.push({
           at: d.goldenEvening.start.getTime() - lead,
-          title: 'Hora dourada ' + leadText,
-          body: `Luz quente e suave até ${formatTime(d.goldenEvening.end, place.tz, s.use24h)}.`,
+          title: tx.goldenTitle(leadMin),
+          body: tx.goldenBody(at(d.goldenEvening.end)),
         });
       day = addDays(day, 1, place.tz);
     }
     for (const q of nextQuarters(new Date(), 4)) {
-      if (prefs.fullMoon && q.key === 'full') jobs.push({ at: q.date.getTime() - 3 * 3_600_000, title: 'Lua cheia hoje', body: 'Procure a lua nascendo a leste junto com o pôr do sol.' });
-      if (prefs.newMoon && q.key === 'new') jobs.push({ at: q.date.getTime() - 3 * 3_600_000, title: 'Lua nova hoje', body: 'Noite escura: ótima para ver estrelas.' });
+      if (prefs.fullMoon && q.key === 'full') jobs.push({ at: q.date.getTime() - 3 * 3_600_000, title: tx.fullMoonTitle, body: tx.fullMoonBody });
+      if (prefs.newMoon && q.key === 'new') jobs.push({ at: q.date.getTime() - 3 * 3_600_000, title: tx.newMoonTitle, body: tx.newMoonBody });
     }
 
     const upcoming = jobs.filter((j) => j.at > now + MIN_MS).sort((a, b) => a.at - b.at).slice(0, 60);

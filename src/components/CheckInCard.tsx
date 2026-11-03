@@ -3,10 +3,11 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, { FadeOutUp, useAnimatedStyle, useSharedValue, withSequence, withSpring, withTiming, FadeInDown } from 'react-native-reanimated';
 
-import { computeStreak } from '@/lib/achievements';
+import { computeStreak, XP } from '@/lib/achievements';
 import { haptic } from '@/lib/haptics';
 import { dayKey, shiftKey } from '@/astro/time';
 import type { CheckInWindow } from '@/hooks/useCheckIn';
+import { useT } from '@/i18n';
 import { useApp } from '@/store/app';
 import { SNAP } from '@/theme/motion';
 import { colors, radius, space } from '@/theme/tokens';
@@ -21,6 +22,7 @@ const KIND_ICON = { sunrise: 'sunrise', sunset: 'sunset', moon: 'moon' } as cons
 export function CheckInCard({ window, tz, moonIllum, showStreak = true }: { window: CheckInWindow; tz?: string; moonIllum: number; showStreak?: boolean }) {
   const checkIns = useApp((s) => s.checkIns);
   const checkIn = useApp((s) => s.checkIn);
+  const tx = useT();
   const { streak, alive } = computeStreak(checkIns.map((c) => c.key), dayKey(new Date(), tz), shiftKey);
   const [burst, setBurst] = useState(0);
   const flame = useSharedValue(1);
@@ -45,7 +47,7 @@ export function CheckInCard({ window, tz, moonIllum, showStreak = true }: { wind
 
   return (
     <Card
-      title={showStreak ? 'Diário de luz' : 'Registrar momento'}
+      title={showStreak ? tx.checkIn.cardTitle : tx.checkIn.logTitle}
       icon={showStreak ? 'flame' : 'eye'}
       onPress={showStreak ? () => router.navigate('/journal') : undefined}
       contentStyle={!showStreak && { marginTop: -space.md }}>
@@ -56,15 +58,15 @@ export function CheckInCard({ window, tz, moonIllum, showStreak = true }: { wind
           </Text>
         </Animated.View>
         <View style={{ flex: 1 }}>
-          <Text variant="headline">{streak === 1 ? 'dia seguido' : 'dias seguidos'}</Text>
+          <Text variant="headline">{tx.checkIn.daysInRow(streak)}</Text>
           <Text variant="footnote" color={colors.textSecondary}>
-            {alive ? 'Sequência garantida hoje.' : streak > 0 ? 'Registre um momento hoje para manter.' : 'Registre o céu para começar uma sequência.'}
+            {alive ? tx.checkIn.streakSafe : streak > 0 ? tx.checkIn.keepStreak : tx.checkIn.startStreak}
           </Text>
         </View>
         {showXp ? (
           <Animated.View key={burst} entering={FadeInDown.duration(220)} exiting={FadeOutUp.duration(180)} style={styles.xp}>
             <Text variant="caption" color={colors.accent}>
-              +20 XP
+              +{XP.checkIn} XP
             </Text>
           </Animated.View>
         ) : null}
@@ -74,7 +76,7 @@ export function CheckInCard({ window, tz, moonIllum, showStreak = true }: { wind
           <View style={styles.doneRow}>
             <Icon name="check" size={14} color={colors.accent} />
             <Text variant="footnote" color={colors.textSecondary}>
-              Momento registrado hoje.
+              {tx.checkIn.done}
             </Text>
           </View>
         ) : (
@@ -83,7 +85,7 @@ export function CheckInCard({ window, tz, moonIllum, showStreak = true }: { wind
               <Icon name={KIND_ICON[window.kind]} size={16} color={colors.accent} />
               <Text variant="headline">{window.prompt}</Text>
             </View>
-            <Button label="Registrar agora" onPress={onCheckIn} size="medium" />
+            <Button label={tx.checkIn.logNow} onPress={onCheckIn} size="medium" />
           </View>
         )
       ) : (

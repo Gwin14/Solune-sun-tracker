@@ -1,7 +1,8 @@
 import * as A from 'astronomy-engine';
 
-import { formatNumber } from '@/astro/format';
+import { formatDecimal, formatNumber } from '@/astro/format';
 import type { Place } from '@/astro/sun';
+import { localeTag, strings } from '@/i18n';
 
 import { catalog, designation, eqVector, starColor } from './catalog';
 import { constellationAt, observerOf, PLANETS, type HorizonFrame, type PlanetId } from './engine';
@@ -153,19 +154,17 @@ export type TargetInfo = {
 };
 
 function lightTravel(ly: number, now: Date): string {
-  if (ly < 100) return `A luz que você vê agora saiu de lá há ${ly.toString().replace('.', ',')} anos.`;
-  if (ly < 3000) {
-    const year = now.getFullYear() - Math.round(ly);
-    const when = year > 0 ? `por volta do ano ${year}` : `por volta de ${Math.abs(year)} a.C.`;
-    return `A luz que chega agora saiu de lá há uns ${formatNumber(ly)} anos, ${when}.`;
-  }
-  return `A ${formatNumber(ly)} anos-luz: a luz que você vê saiu de lá há ${formatNumber(ly)} anos.`;
+  const tx = strings().target;
+  if (ly < 100) return tx.lightNear(ly.toString().replace('.', strings().number.decimal));
+  if (ly < 3000) return tx.lightHistoric(formatNumber(ly), now.getFullYear() - Math.round(ly));
+  return tx.lightFar(formatNumber(ly));
 }
 
 const constellationName = (sym: string) => catalog().constellationById.get(sym)?.name ?? sym;
 
 export function describeTarget(frame: HorizonFrame, id: TargetId, extra: { moonIllum?: number; moonDistKm?: number } = {}): TargetInfo {
   const cat = catalog();
+  const tx = strings().target;
   switch (kindOf(id)) {
     case 'star': {
       const i = Number(id.slice(5));
@@ -176,7 +175,7 @@ export function describeTarget(frame: HorizonFrame, id: TargetId, extra: { moonI
       const desig = designation(hip);
       return {
         title: named?.name ?? desig ?? `HIP ${hip}`,
-        subtitle: ['Estrela', con, named && desig ? desig : null].filter(Boolean).join(' · '),
+        subtitle: [tx.star, con, named && desig ? desig : null].filter(Boolean).join(' · '),
         color: starColor(cat.bv[i]),
         mag: cat.mag[i],
         note: named?.note,
@@ -190,11 +189,11 @@ export function describeTarget(frame: HorizonFrame, id: TargetId, extra: { moonI
       const minutes = (p.dist * 499) / 60;
       return {
         title: p.name,
-        subtitle: `Planeta · em ${constellationName(p.constellation)}`,
+        subtitle: tx.planetIn(constellationName(p.constellation)),
         color: p.color,
         mag: p.mag,
         note: PLANET_NOTES[p.id],
-        distance: `Está a ${formatNumber(km / 1e6)} milhões de km. A luz leva ${minutes < 60 ? `${Math.round(minutes)} min` : `${(minutes / 60).toFixed(1).replace('.', ',')} h`} para chegar até você.`,
+        distance: tx.planetDistance(formatNumber(km / 1e6), minutes < 60 ? `${Math.round(minutes)} min` : `${formatDecimal(minutes / 60)} h`),
       };
     }
     case 'dso': {
@@ -211,52 +210,54 @@ export function describeTarget(frame: HorizonFrame, id: TargetId, extra: { moonI
     }
     case 'constellation': {
       const c = cat.constellationById.get(id.slice(6))!;
-      return { title: c.name, subtitle: `Constelação · ${c.latin}`, color: '#B9C6FF', note: CONSTELLATION_NOTES[c.id] };
+      return { title: c.name, subtitle: `${tx.constellation} · ${c.latin}`, color: '#B9C6FF', note: CONSTELLATION_NOTES[c.id] };
     }
     case 'asterism': {
       const a = ASTERISMS.find((x) => `ast:${x.id}` === id)!;
-      return { title: a.name, subtitle: 'Asterismo', color: '#B9C6FF', note: a.note };
+      return { title: a.name, subtitle: tx.asterism, color: '#B9C6FF', note: a.note };
     }
     case 'galactic':
-      return { title: 'Centro da Via Láctea', subtitle: 'Núcleo galáctico · Sagitário', color: '#F2BE6E', note: GALACTIC_CENTER_NOTE };
+      return { title: tx.galacticTitle, subtitle: `${tx.galacticHint} · ${constellationName('Sgr')}`, color: '#F2BE6E', note: GALACTIC_CENTER_NOTE.text };
     case 'pole': {
       const south = frame.latitude < 0;
       const alt = Math.abs(frame.latitude);
       return {
-        title: south ? 'Polo Sul Celeste' : 'Polo Norte Celeste',
-        subtitle: 'O eixo do céu',
+        title: south ? strings().sky.southPole : strings().sky.northPole,
+        subtitle: tx.poleSubtitle,
         color: '#F2BE6E',
-        note: `Todas as estrelas giram em volta deste ponto, ${alt.toFixed(0)}° acima do horizonte ${south ? 'sul' : 'norte'} — a mesma altura que a sua latitude. Aponte a câmera para cá numa foto de longa exposição e os rastros formam círculos perfeitos.${south ? ' Não há estrela brilhante marcando o polo sul: use o Cruzeiro do Sul como guia.' : ''}`,
+        note: tx.poleNote(alt.toFixed(0), south),
       };
     }
     case 'moon':
       return {
-        title: 'Lua',
-        subtitle: extra.moonIllum != null ? `${Math.round(extra.moonIllum * 100)}% iluminada` : 'Satélite natural',
+        title: strings().sky.moon,
+        subtitle: extra.moonIllum != null ? tx.moonLit(Math.round(extra.moonIllum * 100)) : tx.naturalSatellite,
         color: '#CBD2F2',
-        distance: extra.moonDistKm ? `Está a ${formatNumber(extra.moonDistKm)} km. A luz leva ${(extra.moonDistKm / 299_792).toFixed(1).replace('.', ',')} s para chegar.` : undefined,
+        distance: extra.moonDistKm ? tx.moonDistance(formatNumber(extra.moonDistKm), formatDecimal(extra.moonDistKm / 299_792)) : undefined,
       };
     case 'sun':
-      return { title: 'Sol', subtitle: 'Nossa estrela', color: '#F2BE6E', note: 'Nunca aponte binóculo ou telescópio para o Sol, nem olhe diretamente para ele.', distance: 'A luz leva 8 min 20 s para chegar.' };
+      return { title: strings().sky.sun, subtitle: tx.ourStar, color: '#F2BE6E', note: tx.sunWarning, distance: tx.sunDistance };
   }
 }
 
-export type SearchEntry = { id: TargetId; name: string; hint: string; group: 'Destaques' | 'Planetas' | 'Estrelas' | 'Céu profundo' | 'Constelações' };
+export type SearchEntry = { id: TargetId; name: string; hint: string; group: 'highlights' | 'planets' | 'stars' | 'deepSky' | 'constellations' };
 
 /** The searchable index, built once. Planets come first; the screen adds live visibility. */
 export function searchIndex(southern: boolean): SearchEntry[] {
   const cat = catalog();
+  const tx = strings().target;
+  const sky = strings().sky;
   const out: SearchEntry[] = [
-    { id: 'galactic', name: 'Centro da Via Láctea', hint: 'Núcleo galáctico', group: 'Destaques' },
-    { id: 'pole', name: southern ? 'Polo Sul Celeste' : 'Polo Norte Celeste', hint: 'Para fotos de rastros de estrelas', group: 'Destaques' },
-    { id: 'const:Cru', name: 'Cruzeiro do Sul', hint: 'Constelação', group: 'Destaques' },
-    ...ASTERISMS.map((a) => ({ id: `ast:${a.id}` as TargetId, name: a.name, hint: 'Asterismo', group: 'Destaques' as const })),
-    { id: 'moon', name: 'Lua', hint: 'Satélite', group: 'Destaques' },
-    { id: 'sun', name: 'Sol', hint: 'Nossa estrela', group: 'Destaques' },
-    ...PLANETS.map((p) => ({ id: `planet:${p.id}` as TargetId, name: p.name, hint: 'Planeta', group: 'Planetas' as const })),
-    ...DSOS.map((d) => ({ id: `dso:${d.id}` as TargetId, name: d.name, hint: DSO_KIND_LABEL[d.kind], group: 'Céu profundo' as const })),
-    ...cat.named.filter((s) => s.ly != null || cat.mag[s.index] < 2).map((s) => ({ id: `star:${s.index}` as TargetId, name: s.name, hint: 'Estrela', group: 'Estrelas' as const })),
-    ...[...cat.constellations].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).map((c) => ({ id: `const:${c.id}` as TargetId, name: c.name, hint: c.latin, group: 'Constelações' as const })),
+    { id: 'galactic', name: tx.galacticTitle, hint: tx.galacticHint, group: 'highlights' },
+    { id: 'pole', name: southern ? sky.southPole : sky.northPole, hint: tx.poleHint, group: 'highlights' },
+    { id: 'const:Cru', name: constellationName('Cru'), hint: tx.constellation, group: 'highlights' },
+    ...ASTERISMS.map((a) => ({ id: `ast:${a.id}` as TargetId, name: a.name, hint: tx.asterism, group: 'highlights' as const })),
+    { id: 'moon', name: sky.moon, hint: tx.satellite, group: 'highlights' },
+    { id: 'sun', name: sky.sun, hint: tx.ourStar, group: 'highlights' },
+    ...PLANETS.map((p) => ({ id: `planet:${p.id}` as TargetId, name: p.name, hint: tx.planet, group: 'planets' as const })),
+    ...DSOS.map((d) => ({ id: `dso:${d.id}` as TargetId, name: d.name, hint: DSO_KIND_LABEL[d.kind], group: 'deepSky' as const })),
+    ...cat.named.filter((s) => s.ly != null || cat.mag[s.index] < 2).map((s) => ({ id: `star:${s.index}` as TargetId, name: s.name, hint: tx.star, group: 'stars' as const })),
+    ...[...cat.constellations].sort((a, b) => a.name.localeCompare(b.name, localeTag())).map((c) => ({ id: `const:${c.id}` as TargetId, name: c.name, hint: c.latin, group: 'constellations' as const })),
   ];
   return out;
 }

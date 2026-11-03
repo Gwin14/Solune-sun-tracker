@@ -1,6 +1,7 @@
 import * as A from 'astronomy-engine';
 
 import type { Place } from '@/astro/sun';
+import { strings } from '@/i18n';
 
 import { catalog, eqVector } from './catalog';
 import { DSOS, GALACTIC_CENTER, type Dso } from './names';
@@ -48,14 +49,27 @@ export function enuFromAltAz(alt: number, az: number): [number, number, number] 
 
 export type PlanetId = 'Mercury' | 'Venus' | 'Mars' | 'Jupiter' | 'Saturn' | 'Uranus' | 'Neptune';
 
-export const PLANETS: { id: PlanetId; body: A.Body; name: string; color: string }[] = [
-  { id: 'Mercury', body: A.Body.Mercury, name: 'Mercúrio', color: '#D6CBBE' },
-  { id: 'Venus', body: A.Body.Venus, name: 'Vênus', color: '#FFF2CF' },
-  { id: 'Mars', body: A.Body.Mars, name: 'Marte', color: '#FF8B5E' },
-  { id: 'Jupiter', body: A.Body.Jupiter, name: 'Júpiter', color: '#F5DDB8' },
-  { id: 'Saturn', body: A.Body.Saturn, name: 'Saturno', color: '#F2D488' },
-  { id: 'Uranus', body: A.Body.Uranus, name: 'Urano', color: '#A9E7E6' },
-  { id: 'Neptune', body: A.Body.Neptune, name: 'Netuno', color: '#93AEFF' },
+type Planet = { id: PlanetId; body: A.Body; readonly name: string; color: string };
+
+function planet(id: PlanetId, body: A.Body, color: string): Planet {
+  return {
+    id,
+    body,
+    color,
+    get name() {
+      return strings().skyData.planets[id].name;
+    },
+  };
+}
+
+export const PLANETS: Planet[] = [
+  planet('Mercury', A.Body.Mercury, '#D6CBBE'),
+  planet('Venus', A.Body.Venus, '#FFF2CF'),
+  planet('Mars', A.Body.Mars, '#FF8B5E'),
+  planet('Jupiter', A.Body.Jupiter, '#F5DDB8'),
+  planet('Saturn', A.Body.Saturn, '#F2D488'),
+  planet('Uranus', A.Body.Uranus, '#A9E7E6'),
+  planet('Neptune', A.Body.Neptune, '#93AEFF'),
 ];
 
 export type PlanetState = {

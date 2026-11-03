@@ -19,6 +19,7 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { formatMinuteOfDay } from '@/astro/format';
 import { PATH_STEP_MIN } from '@/astro/sun';
+import { useT } from '@/i18n';
 import { haptic } from '@/lib/haptics';
 import { useLaunch } from '@/store/launch';
 import { EASE_OUT } from '@/theme/motion';
@@ -58,18 +59,13 @@ export function altitudeAt(arr: number[], minute: number): number {
   return arr[i] * (1 - t) + arr[i + 1] * t;
 }
 
-const PHASES: [number, string][] = [
-  [6, 'Luz do dia'],
-  [-4, 'Hora dourada'],
-  [-6, 'Hora azul'],
-  [-12, 'Crepúsculo náutico'],
-  [-18, 'Crepúsculo astronômico'],
-];
+const PHASE_FLOORS = [6, -4, -6, -12, -18];
 
-function phaseLabel(alt: number): string {
+/** `labels` holds one name per floor plus night, already in the active language. */
+function phaseLabel(alt: number, labels: string[]): string {
   'worklet';
-  for (let i = 0; i < PHASES.length; i++) if (alt >= PHASES[i][0]) return PHASES[i][1];
-  return 'Noite';
+  for (let i = 0; i < PHASE_FLOORS.length; i++) if (alt >= PHASE_FLOORS[i]) return labels[i];
+  return labels[PHASE_FLOORS.length];
 }
 
 /** Background wash for a solar altitude: deep night → twilight violet → dawn amber → daylight. */
@@ -225,9 +221,15 @@ export const SunArc = memo(function SunArc({ sunAlt, moonAlt, nowMinute, scrub, 
   }));
 
   const readout = useDerivedValue(() => formatMinuteOfDay(scrub.get(), use24h));
+  const tx = useT();
+  // Worklets can only read plain values, so the phrases are resolved here.
+  const phaseLabels = [tx.sun.phase.day, tx.sun.phase.golden, tx.sun.phase.blue, tx.sun.phase.nautical, tx.sun.phase.astronomical, tx.sun.phase.night];
+  const sunAbove = tx.sunArc.sunAbove;
+  const sunBelow = tx.sunArc.sunBelow;
   const readoutSub = useDerivedValue(() => {
     const a = altitudeAt(sunAlt, scrub.get());
-    return `${phaseLabel(a)} · ${a >= 0 ? 'Sol a' : 'Sol'} ${Math.round(a)}°${a < 0 ? ' abaixo do horizonte' : ''}`;
+    const deg = String(Math.round(Math.abs(a)));
+    return `${phaseLabel(a, phaseLabels)} · ${(a >= 0 ? sunAbove : sunBelow).replace('{deg}', deg)}`;
   });
 
   const [offNow, setOffNow] = useState(false);
@@ -255,13 +257,13 @@ export const SunArc = memo(function SunArc({ sunAlt, moonAlt, nowMinute, scrub, 
         {offNow ? (
           <PressableScale onPress={resetToNow} style={styles.nowPill} hapticOnPress="soft">
             <Text variant="label" color={colors.onPrimary}>
-              Agora
+              {tx.common.now}
             </Text>
           </PressableScale>
         ) : null}
       </View>
       <GestureDetector gesture={gesture}>
-        <View onLayout={onLayout} style={{ height }} accessibilityLabel="Trajeto do sol hoje. Arraste para ver outros horários.">
+        <View onLayout={onLayout} style={{ height }} accessibilityLabel={tx.sunArc.a11y}>
           {width > 0 && geo ? (
             <Svg width={width} height={height}>
               <Defs>

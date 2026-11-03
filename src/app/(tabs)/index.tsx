@@ -4,7 +4,7 @@ import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native'
 import { useDerivedValue, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { compassPoint, formatCountdown, formatDegrees, formatDuration, formatSignedMinutes, formatTime } from '@/astro/format';
+import { compassPoint, formatCountdown, formatDecimal, formatDegrees, formatDuration, formatSignedMinutes, formatTime } from '@/astro/format';
 import { PHASE_LABEL } from '@/astro/moon';
 import { shadowRatio, type Window } from '@/astro/sun';
 import { Appear } from '@/components/Appear';
@@ -23,6 +23,7 @@ import { TopFade } from '@/components/TopFade';
 import { TrackMoment } from '@/components/TrackMoment';
 import { minuteOfDay, useLivePositions, useNow, usePlace, useSunToday, useYearDaylight } from '@/hooks/useAstro';
 import { useCheckInWindow } from '@/hooks/useCheckIn';
+import { useT, type Strings } from '@/i18n';
 import { useApp } from '@/store/app';
 import { colors, radius, space } from '@/theme/tokens';
 
@@ -35,6 +36,7 @@ export default function TodayScreen() {
   const place = usePlace();
   const now = useNow();
   const use24h = useApp((s) => s.use24h);
+  const tx = useT();
   const { today, yesterday, tomorrow, sunPath, moonPath, moonDay } = useSunToday(place, now);
   const live = useLivePositions(place, now);
   const nowMin = minuteOfDay(now, place.tz);
@@ -56,12 +58,12 @@ export default function TodayScreen() {
     const list: NextEvent[] = [];
     const push = (label: string, d: Date | null) => d && list.push({ label, date: d });
     for (const day of [today, tomorrow]) {
-      push('Nascer do sol', day.sunrise);
-      push('Hora dourada', day.goldenEvening.start);
-      push('Pôr do sol', day.sunset);
+      push(tx.sun.sunrise, day.sunrise);
+      push(tx.sun.golden, day.goldenEvening.start);
+      push(tx.sun.sunset, day.sunset);
     }
     return list.filter((e) => e.date.getTime() > now.getTime()).sort((a, b) => a.date.getTime() - b.date.getTime())[0] ?? null;
-  }, [today, tomorrow, now]);
+  }, [today, tomorrow, now, tx]);
 
   const arcEvents: ArcEvent[] = useMemo(() => {
     const out: ArcEvent[] = [];
@@ -90,14 +92,14 @@ export default function TodayScreen() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingTop: insets.top + space.xs, paddingBottom: bottom, paddingHorizontal: space.md, gap: space.sm }}>
           <Appear delay={80} y={-12} duration={650} style={styles.topBar}>
-            <PressableScale onPress={() => router.push('/locations')} style={styles.placeBtn} hapticOnPress="soft" accessibilityLabel={`Local: ${place.name}. Trocar local`}>
+            <PressableScale onPress={() => router.push('/locations')} style={styles.placeBtn} hapticOnPress="soft" accessibilityLabel={tx.today.placeA11y(place.name)}>
               <Icon name={place.id === 'current' ? 'location' : 'pin'} size={14} color={colors.text} />
               <Text variant="subhead" numberOfLines={1} style={{ maxWidth: 220 }}>
                 {place.name}
               </Text>
               <Icon name="chevronDown" size={12} color={colors.textSecondary} />
             </PressableScale>
-            <IconButton icon="settings" label="Ajustes" onPress={() => router.push('/settings')} />
+            <IconButton icon="settings" label={tx.settings.title} onPress={() => router.push('/settings')} />
           </Appear>
 
           <View style={styles.hero}>
@@ -110,29 +112,29 @@ export default function TodayScreen() {
                 </Appear>
                 <Appear delay={260} y={16} scale={0.94} duration={950}>
                   <Text variant="title3" align="center">
-                    {next.label} {formatCountdown(next.date.getTime() - now.getTime())}
+                    {tx.today.nextEvent(next.label, formatCountdown(next.date.getTime() - now.getTime()))}
                   </Text>
                 </Appear>
               </>
             ) : (
               <>
                 <Text variant="hero" align="center">
-                  {today.polar === 'day' ? 'Sol da meia-noite' : 'Noite polar'}
+                  {today.polar === 'day' ? tx.today.midnightSun : tx.today.polarNight}
                 </Text>
                 <Text variant="title3" align="center">
-                  {today.polar === 'day' ? 'O sol não se põe hoje.' : 'O sol não nasce hoje.'}
+                  {today.polar === 'day' ? tx.today.noSunset : tx.today.noSunrise}
                 </Text>
               </>
             )}
             <Appear delay={360} y={16} scale={0.94} duration={950}>
               <Text variant="callout" color={colors.textSecondary} align="center" style={{ marginTop: space.xxs }}>
-                Dia de {formatDuration(today.dayLengthMin)} · {formatSignedMinutes(dayDelta)} que ontem
+                {tx.today.dayLength(formatDuration(today.dayLengthMin), formatSignedMinutes(dayDelta))}
               </Text>
             </Appear>
           </View>
 
           <Reveal index={1}>
-            <Card title="Trajeto de hoje" icon="sun" accessory={<Hint />}>
+            <Card title={tx.today.pathTitle} icon="sun" accessory={<Hint />}>
               <SunArc
                 sunAlt={sunPath.alt}
                 moonAlt={moonPath.alt}
@@ -147,7 +149,7 @@ export default function TodayScreen() {
           </Reveal>
 
           <Reveal index={2} style={styles.row}>
-            <Card title="Nascer" icon="sunrise" style={{ flex: 1 }}>
+            <Card title={tx.sun.rise} icon="sunrise" style={{ flex: 1 }}>
               <Text variant="metric" selectable>
                 {t(today.sunrise)}
               </Text>
@@ -155,10 +157,10 @@ export default function TodayScreen() {
                 {today.sunriseAzimuth != null ? `${formatDegrees(today.sunriseAzimuth)} ${compassPoint(today.sunriseAzimuth)}` : '—'}
               </Text>
               <Text variant="caption" color={colors.textTertiary}>
-                Amanhã {t(tomorrow.sunrise)}
+                {tx.today.tomorrowAt(t(tomorrow.sunrise))}
               </Text>
             </Card>
-            <Card title="Pôr" icon="sunset" style={{ flex: 1 }}>
+            <Card title={tx.sun.set} icon="sunset" style={{ flex: 1 }}>
               <Text variant="metric" selectable>
                 {t(today.sunset)}
               </Text>
@@ -166,26 +168,26 @@ export default function TodayScreen() {
                 {today.sunsetAzimuth != null ? `${formatDegrees(today.sunsetAzimuth)} ${compassPoint(today.sunsetAzimuth)}` : '—'}
               </Text>
               <Text variant="caption" color={colors.textTertiary}>
-                Amanhã {t(tomorrow.sunset)}
+                {tx.today.tomorrowAt(t(tomorrow.sunset))}
               </Text>
             </Card>
           </Reveal>
 
           <Reveal index={3}>
-            <Card title="Horas mágicas" icon="sparkle" accessory={<TrackMoment kind="golden" />}>
+            <Card title={tx.today.magicHours} icon="sparkle" accessory={<TrackMoment kind="golden" />}>
               <View style={{ gap: space.sm }}>
-                <MagicRow label="Manhã" blue={today.blueMorning} golden={today.goldenMorning} order="blueFirst" t={t} />
+                <MagicRow label={tx.today.morning} blue={today.blueMorning} golden={today.goldenMorning} order="blueFirst" t={t} tx={tx} />
                 <Divider />
-                <MagicRow label="Tarde" blue={today.blueEvening} golden={today.goldenEvening} order="goldenFirst" t={t} />
+                <MagicRow label={tx.today.evening} blue={today.blueEvening} golden={today.goldenEvening} order="goldenFirst" t={t} tx={tx} />
               </View>
               <Text variant="caption" color={colors.textTertiary} style={{ marginTop: space.sm }}>
-                Dourada: sol entre −4° e 6°. Azul: entre −6° e −4°.
+                {tx.today.magicHint}
               </Text>
             </Card>
           </Reveal>
 
           <Reveal index={4}>
-            <Card title="Luz ao longo do dia" icon="clock">
+            <Card title={tx.today.lightTitle} icon="clock">
               <LightTimeline
                 sunAlt={sunPath.alt}
                 nowMinute={nowMin}
@@ -209,10 +211,10 @@ export default function TodayScreen() {
                 ))}
               </View>
               <Divider style={{ marginVertical: space.sm }} />
-              <TwilightRow label="Crepúsculo civil" w={today.civil} t={t} />
-              <TwilightRow label="Crepúsculo náutico" w={today.nautical} t={t} />
-              <TwilightRow label="Crepúsculo astronômico" w={today.astronomical} t={t} />
-              <TwilightRow label="Meio-dia solar" w={{ start: today.noon, end: null }} t={t} single={`${t(today.noon)} · ${formatDegrees(today.noonAltitude)}`} />
+              <TwilightRow label={tx.sun.civil} w={today.civil} t={t} />
+              <TwilightRow label={tx.sun.nautical} w={today.nautical} t={t} />
+              <TwilightRow label={tx.sun.astronomical} w={today.astronomical} t={t} />
+              <TwilightRow label={tx.sun.solarNoon} w={{ start: today.noon, end: null }} t={t} single={`${t(today.noon)} · ${formatDegrees(today.noonAltitude)}`} />
             </Card>
           </Reveal>
 
@@ -222,12 +224,12 @@ export default function TodayScreen() {
                 <MoonGlyph size={76} angle={live.moonState.angle} southern={southern} />
                 <View style={{ flex: 1, gap: space.sm }}>
                   <View style={styles.row}>
-                    <Metric label="Iluminação" value={`${Math.round(live.moonState.illumination * 100)}%`} />
-                    <Metric label="Idade" value={`${live.moonState.ageDays.toFixed(1).replace('.', ',')} d`} />
+                    <Metric label={tx.moon.illumination} value={`${Math.round(live.moonState.illumination * 100)}%`} />
+                    <Metric label={tx.moon.age} value={tx.moon.ageValue(formatDecimal(live.moonState.ageDays))} />
                   </View>
                   <View style={styles.row}>
-                    <Metric label="Nasce" value={t(moonDay.moonrise)} />
-                    <Metric label="Põe" value={t(moonDay.moonset)} />
+                    <Metric label={tx.moon.rises} value={t(moonDay.moonrise)} />
+                    <Metric label={tx.moon.sets} value={t(moonDay.moonset)} />
                   </View>
                 </View>
               </View>
@@ -235,7 +237,7 @@ export default function TodayScreen() {
           </Reveal>
 
           <Reveal index={6}>
-            <Card title="Céu agora" icon="compass">
+            <Card title={tx.today.skyNow} icon="compass">
               <View style={{ alignItems: 'center', paddingVertical: space.xs }}>
                 <SkyDome
                   size={Math.min(width - space.md * 4, 300)}
@@ -248,9 +250,9 @@ export default function TodayScreen() {
                 />
               </View>
               <View style={[styles.row, { marginTop: space.sm }]}>
-                <Metric label="Altitude" value={formatDegrees(live.sun.alt, 1)} color={live.sun.alt > 0 ? colors.accent : colors.text} />
-                <Metric label="Direção" value={`${formatDegrees(live.sun.az)} ${compassPoint(live.sun.az)}`} />
-                <Metric label="Sombra" value={shadow ? `${shadow.toFixed(1).replace('.', ',')}×` : '—'} sub={shadow ? 'sua altura' : 'sol abaixo'} />
+                <Metric label={tx.today.altitude} value={formatDegrees(live.sun.alt, 1)} color={live.sun.alt > 0 ? colors.accent : colors.text} />
+                <Metric label={tx.today.direction} value={`${formatDegrees(live.sun.az)} ${compassPoint(live.sun.az)}`} />
+                <Metric label={tx.today.shadow} value={shadow ? `${formatDecimal(shadow)}×` : '—'} sub={shadow ? tx.today.shadowYourHeight : tx.today.shadowSunDown} />
               </View>
             </Card>
           </Reveal>
@@ -260,12 +262,12 @@ export default function TodayScreen() {
           </Reveal>
 
           <Reveal index={8}>
-            <Card title="Duração do dia no ano" icon="hourglass">
+            <Card title={tx.today.yearTitle} icon="hourglass">
               <DaylightChart data={year} todayT={now.getTime()} format={(m) => formatDuration(m, { compact: true })} />
               <View style={[styles.row, { marginTop: space.sm }]}>
-                <Metric label="Mais longo" value={formatDuration(longest, { compact: true })} />
-                <Metric label="Mais curto" value={formatDuration(shortest, { compact: true })} />
-                <Metric label="Hoje" value={formatDuration(today.dayLengthMin, { compact: true })} color={colors.accent} />
+                <Metric label={tx.today.longest} value={formatDuration(longest, { compact: true })} />
+                <Metric label={tx.today.shortest} value={formatDuration(shortest, { compact: true })} />
+                <Metric label={tx.today.todayLabel} value={formatDuration(today.dayLengthMin, { compact: true })} color={colors.accent} />
               </View>
             </Card>
           </Reveal>
@@ -281,20 +283,21 @@ export default function TodayScreen() {
 }
 
 function Hint() {
+  const tx = useT();
   return (
     <View style={styles.hint}>
       <Icon name="hand" size={11} color={colors.textTertiary} />
       <Text variant="caption" color={colors.textTertiary}>
-        Arraste
+        {tx.today.drag}
       </Text>
     </View>
   );
 }
 
-function MagicRow({ label, blue, golden, order, t }: { label: string; blue: Window; golden: Window; order: 'blueFirst' | 'goldenFirst'; t: (d: Date | null) => string }) {
+function MagicRow({ label, blue, golden, order, t, tx }: { label: string; blue: Window; golden: Window; order: 'blueFirst' | 'goldenFirst'; t: (d: Date | null) => string; tx: Strings }) {
   const chips = [
-    { key: 'blue', name: 'Azul', w: blue, color: colors.blue },
-    { key: 'golden', name: 'Dourada', w: golden, color: colors.golden },
+    { key: 'blue', name: tx.sun.blueShort, w: blue, color: colors.blue },
+    { key: 'golden', name: tx.sun.goldenShort, w: golden, color: colors.golden },
   ];
   if (order === 'goldenFirst') chips.reverse();
   return (

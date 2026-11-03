@@ -2,9 +2,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DarkTheme, Stack, ThemeProvider, router, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useLocales } from 'expo-localization';
+import { useEffect, useRef, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import { resolveLanguage, useLanguage } from '@/i18n';
 import { refreshCurrentLocation } from '@/lib/location';
 import { rescheduleNotifications } from '@/lib/notifications';
 import { useApp } from '@/store/app';
@@ -25,12 +27,30 @@ const theme = {
   colors: { ...DarkTheme.colors, background: colors.ink, card: colors.inkSheet, primary: colors.accent, text: colors.text, border: colors.hairline },
 };
 
-function useHydrated() {
-  const [done, setDone] = useState(() => useApp.persist.hasHydrated());
+function usePersisted(store: { persist: { hasHydrated: () => boolean; onFinishHydration: (fn: () => void) => () => void } }) {
+  const [done, setDone] = useState(() => store.persist.hasHydrated());
   useEffect(() => {
-    return useApp.persist.onFinishHydration(() => setDone(true));
-  }, []);
+    return store.persist.onFinishHydration(() => setDone(true));
+  }, [store]);
   return done;
+}
+
+/**
+ * The language in effect: the user's pick, or the device's in automatic mode (useLocales
+ * re-renders when the system language changes while the app runs, as on Android).
+ */
+function useActiveLanguage() {
+  const pref = useLanguage((s) => s.pref);
+  const locales = useLocales();
+  const lang = resolveLanguage(pref);
+  // Reminders and widgets carry text too: rebuild them when the language changes.
+  const previous = useRef(lang);
+  useEffect(() => {
+    if (previous.current === lang) return;
+    previous.current = lang;
+    if (useApp.getState().hasOnboarded) rescheduleNotifications();
+  }, [lang, locales]);
+  return lang;
 }
 
 /** Pushes the badge celebration whenever something new unlocks. */
@@ -47,9 +67,11 @@ function CelebrationWatcher() {
 }
 
 export default function RootLayout() {
-  const hydrated = useHydrated();
+  const appReady = usePersisted(useApp);
+  const languageReady = usePersisted(useLanguage);
+  const lang = useActiveLanguage();
   const hasOnboarded = useApp((s) => s.hasOnboarded);
-  const ready = hydrated;
+  const ready = appReady && languageReady;
 
   useEffect(() => {
     if (!ready) return;
@@ -69,7 +91,8 @@ export default function RootLayout() {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider value={theme}>
           <StatusBar style="light" />
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ink } }}>
+          {/* Keyed by language: every screen re-renders its text, including memoized parts. */}
+          <Stack key={lang} screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ink } }}>
             <Stack.Protected guard={hasOnboarded}>
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="settings" options={{ presentation: 'modal', contentStyle: { backgroundColor: colors.inkSheet } }} />

@@ -39,12 +39,12 @@ export default function StreakWidget(props: StreakWidgetProps, env: WidgetEnviro
         <VStack alignment="leading" spacing={2}>
           <HStack spacing={4}>
             <Image systemName="flame.fill" size={12} color={tinted ? undefined : amber} />
-            <Text modifiers={[font({ size: 12, weight: 'semibold' }), secondary]}>Sequência</Text>
+            <Text modifiers={[font({ size: 12, weight: 'semibold' }), secondary]}>{props.labels.title}</Text>
           </HStack>
           <Spacer />
           <HStack alignment="lastTextBaseline" spacing={4}>
             <Text modifiers={[font({ size: 44, weight: 'light' })]}>{String(props.streak)}</Text>
-            <Text modifiers={[font({ size: 15, weight: 'medium' }), secondary]}>{props.streak === 1 ? 'dia' : 'dias'}</Text>
+            <Text modifiers={[font({ size: 15, weight: 'medium' }), secondary]}>{props.labels.days}</Text>
           </HStack>
           <Text modifiers={[font({ size: 12, weight: 'medium' }), tertiary, lineLimit(1)]}>{props.hint}</Text>
         </VStack>
@@ -62,12 +62,12 @@ export default function StreakWidget(props: StreakWidgetProps, env: WidgetEnviro
     <VStack alignment="leading" spacing={2} modifiers={[background, widgetURL('solune://journal')]}>
       <HStack spacing={4}>
         <Image systemName="flame.fill" size={12} color={tinted ? undefined : amber} />
-        <Text modifiers={[font({ size: 12, weight: 'semibold' }), secondary]}>Sequência</Text>
+        <Text modifiers={[font({ size: 12, weight: 'semibold' }), secondary]}>{props.labels.title}</Text>
       </HStack>
       <Spacer />
       <HStack alignment="lastTextBaseline" spacing={4}>
         <Text modifiers={[font({ size: 40, weight: 'light' })]}>{String(props.streak)}</Text>
-        <Text modifiers={[font({ size: 13, weight: 'medium' }), secondary]}>{props.streak === 1 ? 'dia' : 'dias'}</Text>
+        <Text modifiers={[font({ size: 13, weight: 'medium' }), secondary]}>{props.labels.days}</Text>
       </HStack>
       <Spacer />
       {week(7, 5)}

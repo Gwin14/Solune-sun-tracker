@@ -1,3 +1,5 @@
+import { strings } from '@/i18n';
+
 export type City = { name: string; region: string; latitude: number; longitude: number; tz: string };
 
 /** Offline city catalogue: instant search results and a time-zone source for geocoded places. */
@@ -81,10 +83,22 @@ const strip = (s: string) =>
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase();
 
-export function searchCities(query: string): City[] {
+/** Place names in the active language: the catalogue is written in Portuguese. */
+const localName = (name: string) => strings().places[name] ?? name;
+
+/** A catalogue city with its name and region in the active language; `key` stays the catalogue name. */
+export function localizedCity(c: City): City & { key: string } {
+  return { ...c, key: c.name, name: localName(c.name), region: c.region.split(', ').map(localName).join(', ') };
+}
+
+export function searchCities(query: string): (City & { key: string })[] {
   const q = strip(query.trim());
   if (!q) return [];
-  return CITIES.filter((c) => strip(`${c.name} ${c.region}`).includes(q)).slice(0, 12);
+  // Both spellings match, so "Londres" and "London" find the same city.
+  return CITIES.map((c) => [c, localizedCity(c)] as const)
+    .filter(([c, l]) => strip(`${c.name} ${c.region} ${l.name} ${l.region}`).includes(q))
+    .slice(0, 12)
+    .map(([, l]) => l);
 }
 
 /** Nearest catalogued city's time zone — a good guess for geocoded places. */

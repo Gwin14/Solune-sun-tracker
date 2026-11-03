@@ -1,13 +1,12 @@
+import { localized, strings } from '@/i18n';
+
 import { MIN_MS, wallClock } from './time';
 
-export const MONTHS = [
-  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
-  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
-];
-export const MONTHS_SHORT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-export const WEEKDAYS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
-export const WEEKDAYS_SHORT = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
-export const WEEKDAYS_LETTER = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+export const MONTHS = localized((s) => s.calendar.months);
+export const MONTHS_SHORT = localized((s) => s.calendar.monthsShort);
+export const WEEKDAYS = localized((s) => s.calendar.weekdays);
+export const WEEKDAYS_SHORT = localized((s) => s.calendar.weekdaysShort);
+export const WEEKDAYS_LETTER = localized((s) => s.calendar.weekdaysLetter);
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -44,25 +43,21 @@ export function formatDuration(minutes: number, opts: { compact?: boolean } = {}
 }
 
 export function formatCountdown(ms: number): string {
+  const rel = strings().relative;
   const minutes = Math.round(Math.abs(ms) / MIN_MS);
-  if (minutes < 1) return ms >= 0 ? 'agora' : 'agora mesmo';
-  if (minutes >= 1440) {
-    const d = Math.round(minutes / 1440);
-    const label = d === 1 ? '1 dia' : `${d} dias`;
-    return ms >= 0 ? `em ${label}` : `há ${label}`;
-  }
-  const text = formatDuration(minutes);
-  return ms >= 0 ? `em ${text}` : `há ${text}`;
+  if (minutes < 1) return ms >= 0 ? rel.now : rel.justNow;
+  const text = minutes >= 1440 ? rel.days(Math.round(minutes / 1440)) : formatDuration(minutes);
+  return ms >= 0 ? rel.in(text) : rel.ago(text);
 }
 
 export function formatDaysUntil(days: number): string {
-  if (days <= 0) return 'hoje';
-  if (days === 1) return 'amanhã';
-  if (days < 45) return `em ${days} dias`;
+  const rel = strings().relative;
+  if (days <= 0) return rel.today;
+  if (days === 1) return rel.tomorrow;
+  if (days < 45) return rel.inDays(days);
   const months = Math.round(days / 30.4);
-  if (months < 12) return `em ${months} ${months === 1 ? 'mês' : 'meses'}`;
-  const years = Math.round(days / 365);
-  return `em ${years} ${years === 1 ? 'ano' : 'anos'}`;
+  if (months < 12) return rel.inMonths(months);
+  return rel.inYears(Math.round(days / 365));
 }
 
 export function formatSignedMinutes(deltaMinutes: number): string {
@@ -75,32 +70,31 @@ export function formatSignedMinutes(deltaMinutes: number): string {
 }
 
 export function formatDate(date: Date, tz: string | undefined, style: 'long' | 'short' | 'weekday' | 'compact' = 'long'): string {
-  const w = wallClock(date, tz);
-  if (style === 'short') return `${w.day} ${MONTHS_SHORT[w.month]}`;
-  if (style === 'compact') return `${WEEKDAYS_SHORT[w.weekday]}, ${w.day} ${MONTHS_SHORT[w.month]}`;
-  if (style === 'weekday') return `${capitalize(WEEKDAYS[w.weekday])}, ${w.day} de ${MONTHS[w.month]}`;
-  return `${w.day} de ${MONTHS[w.month]} de ${w.year}`;
+  return strings().calendar.date[style](wallClock(date, tz));
+}
+
+/** Fixed decimals with the language's decimal separator. */
+export function formatDecimal(value: number, digits = 1): string {
+  return value.toFixed(digits).replace('.', strings().number.decimal);
 }
 
 export function formatDegrees(value: number, digits = 0): string {
-  return `${value.toFixed(digits).replace('.', ',')}°`;
+  return `${formatDecimal(value, digits)}°`;
 }
 
 export function formatNumber(value: number): string {
-  return Math.round(value).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return Math.round(value).toString().replace(/\B(?=(\d{3})+(?!\d))/g, strings().number.group);
 }
 
 export function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-const COMPASS = ['N', 'NNE', 'NE', 'ENE', 'L', 'ESE', 'SE', 'SSE', 'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO'];
 export function compassPoint(azimuth: number): string {
-  return COMPASS[Math.round((((azimuth % 360) + 360) % 360) / 22.5) % 16];
+  return strings().compass.points[Math.round((((azimuth % 360) + 360) % 360) / 22.5) % 16];
 }
 
-const DIRECTIONS = ['norte', 'nordeste', 'leste', 'sudeste', 'sul', 'sudoeste', 'oeste', 'noroeste'];
 /** The direction spelled out for a sentence: "a nordeste". */
 export function directionName(azimuth: number): string {
-  return DIRECTIONS[Math.round((((azimuth % 360) + 360) % 360) / 45) % 8];
+  return strings().compass.directions[Math.round((((azimuth % 360) + 360) % 360) / 45) % 8];
 }

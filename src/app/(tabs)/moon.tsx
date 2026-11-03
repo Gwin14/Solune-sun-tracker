@@ -6,7 +6,7 @@ import Animated, { cancelAnimation, Easing, useAnimatedStyle, useReducedMotion, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
-import { formatCountdown, formatDate, formatNumber, formatTime, MONTHS, WEEKDAYS_LETTER, capitalize } from '@/astro/format';
+import { formatCountdown, formatDate, formatDecimal, formatNumber, formatTime, MONTHS, WEEKDAYS_LETTER, capitalize } from '@/astro/format';
 import { computeMoonDay, MICROMOON_KM, moonState, PHASE_HINT, PHASE_LABEL, SUPERMOON_KM } from '@/astro/moon';
 import { addDays, DAY_MS, localMidnight, startOfDay, wallClock } from '@/astro/time';
 import { Appear } from '@/components/Appear';
@@ -22,6 +22,7 @@ import { useTabBarSpace } from '@/components/TabSpace';
 import { Text } from '@/components/Text';
 import { TopFade } from '@/components/TopFade';
 import { useNow, usePlace, useQuarters } from '@/hooks/useAstro';
+import { useT } from '@/i18n';
 import { haptic } from '@/lib/haptics';
 import { useApp } from '@/store/app';
 import { SNAP } from '@/theme/motion';
@@ -40,6 +41,7 @@ function MoonScreen() {
   const now = useNow();
   const use24h = useApp((s) => s.use24h);
   const reduce = useReducedMotion();
+  const tx = useT();
   const southern = place.latitude < 0;
   const tz = place.tz;
 
@@ -104,10 +106,10 @@ function MoonScreen() {
     <View style={styles.root}>
       <SkyBackground altitude={night} />
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: insets.top + space.md, paddingBottom: bottom, paddingHorizontal: space.md, gap: space.sm }}>
-          <ScreenTitle title="Lua" subtitle={offset === 0 ? `Hoje em ${place.name}` : capitalize(formatDate(dayStart, tz, 'weekday'))} />
+          <ScreenTitle title={tx.tabs.moon} subtitle={offset === 0 ? tx.moon.todayIn(place.name) : capitalize(formatDate(dayStart, tz, 'weekday'))} />
 
           <GestureDetector gesture={pan}>
-            <View style={styles.hero} accessibilityLabel="Arraste para ver a lua em outros dias">
+            <View style={styles.hero} accessibilityLabel={tx.moon.dragA11y}>
               <Appear delay={100} y={0} scale={0.9} duration={1100}>
                 <Animated.View style={moonStyle}>
                   <MoonGlyph size={size} angle={state.angle} southern={southern} />
@@ -118,7 +120,7 @@ function MoonScreen() {
                   {PHASE_LABEL[state.key]}
                 </Text>
                 <Text variant="callout" color={colors.textSecondary} align="center">
-                  {Math.round(state.illumination * 100)}% iluminada · {state.waxing ? 'crescendo' : 'minguando'}
+                  {tx.moon.litTrend(Math.round(state.illumination * 100), state.waxing)}
                 </Text>
               </Appear>
               <View style={{ alignSelf: 'stretch', marginTop: space.lg }}>
@@ -127,12 +129,12 @@ function MoonScreen() {
               {offset !== 0 ? (
                 <PressableScale onPress={resetDay} style={styles.todayPill} hapticOnPress="soft">
                   <Text variant="label" color={colors.onPrimary}>
-                    Voltar para hoje
+                    {tx.moon.backToToday}
                   </Text>
                 </PressableScale>
               ) : (
                 <Text variant="caption" color={colors.textTertiary} style={{ marginTop: space.sm }}>
-                  Arraste a lua para viajar no tempo
+                  {tx.moon.dragHint}
                 </Text>
               )}
             </View>
@@ -147,12 +149,12 @@ function MoonScreen() {
           </Reveal>
 
           <Reveal index={1} style={styles.row}>
-            <Card title="Nasce" icon="moonrise" iconColor={colors.moon} style={{ flex: 1 }}>
+            <Card title={tx.moon.rises} icon="moonrise" iconColor={colors.moon} style={{ flex: 1 }}>
               <Text variant="metric" selectable>
                 {formatTime(moonDay.moonrise, tz, use24h)}
               </Text>
             </Card>
-            <Card title="Põe" icon="moon" iconColor={colors.moon} style={{ flex: 1 }}>
+            <Card title={tx.moon.sets} icon="moon" iconColor={colors.moon} style={{ flex: 1 }}>
               <Text variant="metric" selectable>
                 {formatTime(moonDay.moonset, tz, use24h)}
               </Text>
@@ -160,7 +162,7 @@ function MoonScreen() {
           </Reveal>
 
           <Reveal index={2}>
-            <Card title="Próximas fases" icon="moonPhase" iconColor={colors.moon}>
+            <Card title={tx.moon.nextPhases} icon="moonPhase" iconColor={colors.moon}>
               {quarters.map((q, i) => (
                 <View key={q.date.getTime()}>
                   {i ? <Divider /> : null}
@@ -182,19 +184,19 @@ function MoonScreen() {
           </Reveal>
 
           <Reveal index={3}>
-            <Card title="Distância da Terra" icon="ruler">
+            <Card title={tx.moon.distanceTitle} icon="ruler">
               <View style={styles.row}>
-                <Metric label="Agora" value={`${formatNumber(state.distanceKm)} km`} />
-                <Metric label="Diâmetro aparente" value={`${((2 * 1737.4) / state.distanceKm * (180 / Math.PI) * 60).toFixed(1).replace('.', ',')}′`} />
+                <Metric label={tx.moon.now} value={`${formatNumber(state.distanceKm)} km`} />
+                <Metric label={tx.moon.apparentSize} value={`${formatDecimal((2 * 1737.4) / state.distanceKm * (180 / Math.PI) * 60)}′`} />
               </View>
               <View style={{ marginTop: space.md, gap: 6 }}>
                 <ProgressBar value={1 - distPct} color={colors.moon} height={10} />
                 <View style={styles.between}>
                   <Text variant="caption" color={colors.textTertiary}>
-                    Perigeu 356 mil km
+                    {tx.moon.perigee}
                   </Text>
                   <Text variant="caption" color={colors.textTertiary}>
-                    Apogeu 406 mil km
+                    {tx.moon.apogee}
                   </Text>
                 </View>
               </View>
@@ -203,10 +205,10 @@ function MoonScreen() {
                   <Icon name={nextFull.distanceKm < SUPERMOON_KM ? 'sparkle' : 'moonFull'} size={14} color={nextFull.distanceKm < SUPERMOON_KM ? colors.accent : colors.moon} />
                   <Text variant="footnote" color={colors.textSecondary} style={{ flex: 1 }}>
                     {nextFull.distanceKm < SUPERMOON_KM
-                      ? `A próxima lua cheia é uma superlua, a ${formatNumber(nextFull.distanceKm)} km.`
+                      ? tx.moon.nextSupermoon(formatNumber(nextFull.distanceKm))
                       : nextFull.distanceKm > MICROMOON_KM
-                        ? `A próxima lua cheia é uma microlua, a ${formatNumber(nextFull.distanceKm)} km.`
-                        : `Próxima lua cheia a ${formatNumber(nextFull.distanceKm)} km.`}
+                        ? tx.moon.nextMicromoon(formatNumber(nextFull.distanceKm))
+                        : tx.moon.nextFull(formatNumber(nextFull.distanceKm))}
                   </Text>
                 </View>
               ) : null}
@@ -238,8 +240,9 @@ function MoonCalendar({ now, tz, southern }: { now: Date; tz?: string; southern:
   }, [w.year, w.month, tz]);
   const { width } = useWindowDimensions();
   const cell = Math.floor((width - space.md * 4) / 7);
+  const tx = useT();
   return (
-    <Card title={`Calendário lunar de ${MONTHS[w.month]}`} icon="calendar">
+    <Card title={tx.moon.calendar(MONTHS[w.month])} icon="calendar">
       <View style={styles.weekHeader}>
         {WEEKDAYS_LETTER.map((l, i) => (
           <Text key={i} variant="caption" color={colors.textTertiary} align="center" style={{ width: cell }}>

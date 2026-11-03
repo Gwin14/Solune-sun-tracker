@@ -1,6 +1,7 @@
 import * as Location from 'expo-location';
 
 import { deviceTimeZone } from '@/astro/time';
+import { strings } from '@/i18n';
 import { useApp, type SavedPlace } from '@/store/app';
 
 import { nearestTimeZone } from './cities';
@@ -25,7 +26,7 @@ export async function refreshCurrentLocation(ask = false): Promise<LocateResult>
       (await Location.getLastKnownPositionAsync({ maxAge: 30 * 60_000 })) ??
       (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
     const { latitude, longitude } = pos.coords;
-    let name = 'Sua localização';
+    let name = strings().locations.yourLocation;
     let region: string | undefined;
     let tz: string | undefined;
     try {

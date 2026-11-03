@@ -3,6 +3,7 @@ import { View, type LayoutChangeEvent } from 'react-native';
 import Animated, { useAnimatedProps, useAnimatedStyle, useSharedValue, withDelay, withSpring } from 'react-native-reanimated';
 import Svg, { Circle, Defs, G, Line, LinearGradient, Path, Rect, Stop, Text as SvgText } from 'react-native-svg';
 
+import { localized, strings } from '@/i18n';
 import { SNAP } from '@/theme/motion';
 import { colors, weight, radius } from '@/theme/tokens';
 
@@ -107,15 +108,17 @@ export function LegendDot({ color }: { color: string }) {
   return <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />;
 }
 
+const LEGEND_LABELS = localized((s) => s.charts.legend);
+
 export const PHASE_LEGEND = [
-  { color: skyColor(20), label: 'Dia' },
-  { color: skyColor(2), label: 'Dourada' },
-  { color: skyColor(-5), label: 'Azul' },
-  { color: skyColor(-12.5), label: 'Crepúsculo' },
-  { color: skyColor(-30), label: 'Noite' },
+  { color: skyColor(20), get label() { return LEGEND_LABELS[0]; } },
+  { color: skyColor(2), get label() { return LEGEND_LABELS[1]; } },
+  { color: skyColor(-5), get label() { return LEGEND_LABELS[2]; } },
+  { color: skyColor(-12.5), get label() { return LEGEND_LABELS[3]; } },
+  { color: skyColor(-30), get label() { return LEGEND_LABELS[4]; } },
 ];
 
-const MONTH_INITIALS = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+const MONTH_INITIALS = localized((s) => s.calendar.monthsLetter);
 
 /** Day length across the year: smooth curve, 12-hour reference, solstices and today annotated. */
 export const DaylightChart = memo(function DaylightChart({
@@ -291,11 +294,12 @@ export const SkyDome = memo(function SkyDome({
     .map(({ h, i }) => ({ h, ...pt(sunPath.az[i], sunPath.alt[i]) }));
   const sunP = pt(sun.az, sun.alt);
   const moonP = pt(moon.az, moon.alt);
+  const points = strings().compass.points;
   const cardinals: [string, number][] = [
-    ['N', 0],
-    ['L', 90],
-    ['S', 180],
-    ['O', 270],
+    [points[0], 0],
+    [points[4], 90],
+    [points[8], 180],
+    [points[12], 270],
   ];
   const rim = (az: number, rr: number) => ({ x: c + rr * Math.sin(az * D2R), y: c - rr * Math.cos(az * D2R) });
 

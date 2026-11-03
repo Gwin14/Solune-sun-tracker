@@ -1,0 +1,16 @@
+{
+  "Quando o sol se põe no ${applicationName}": "When does the sun set in ${applicationName}",
+  "Que horas é o pôr do sol no ${applicationName}": "What time is sunset in ${applicationName}",
+  "Pôr do sol no ${applicationName}": "${applicationName} sunset",
+  "Quando o sol nasce no ${applicationName}": "When does the sun rise in ${applicationName}",
+  "Nascer do sol no ${applicationName}": "${applicationName} sunrise",
+  "Quando é a hora dourada no ${applicationName}": "When is golden hour in ${applicationName}",
+  "Hora dourada no ${applicationName}": "${applicationName} golden hour",
+  "Qual a fase da lua no ${applicationName}": "What's the moon phase in ${applicationName}",
+  "Como está a lua no ${applicationName}": "How's the moon in ${applicationName}",
+  "Acompanhar a hora dourada no ${applicationName}": "Follow golden hour in ${applicationName}",
+  "Acompanhar ${moment} no ${applicationName}": "Follow ${moment} in ${applicationName}",
+  "Ver o céu no ${applicationName}": "Show the sky in ${applicationName}",
+  "Onde está o sol no ${applicationName}": "Where is the sun in ${applicationName}",
+  "Registrar o céu no ${applicationName}": "Log the sky in ${applicationName}"
+}

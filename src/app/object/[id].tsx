@@ -7,7 +7,7 @@ import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { directionName, formatDegrees, formatNumber, formatTime } from '@/astro/format';
+import { directionName, formatDecimal, formatDegrees, formatNumber, formatTime } from '@/astro/format';
 import { moonState } from '@/astro/moon';
 import { catalog } from '@/astro/sky/catalog';
 import { altAz, constellationAt, enuFromAltAz, enuToEquator, horizonFrame, planViewing, type HorizonFrame } from '@/astro/sky/engine';
@@ -25,6 +25,7 @@ import { Metric } from '@/components/Screen';
 import { Text } from '@/components/Text';
 import { TopFade } from '@/components/TopFade';
 import { useNow, usePlace } from '@/hooks/useAstro';
+import { language, strings, useT } from '@/i18n';
 import { pointSkyAt } from '@/store/skyIntent';
 import { useApp } from '@/store/app';
 import { colors, radius, space } from '@/theme/tokens';
@@ -32,7 +33,7 @@ import { colors, radius, space } from '@/theme/tokens';
 /** Objects whose shape is the point: their hero is the sky chart, not a photo. */
 const CHART_HERO: TargetKind[] = ['constellation', 'asterism', 'pole'];
 
-const fmt1 = (v: number) => v.toFixed(1).replace('.', ',');
+const fmt1 = (v: number) => formatDecimal(v);
 
 export default function ObjectScreen() {
   const { id: raw } = useLocalSearchParams<{ id: string }>();
@@ -72,62 +73,64 @@ function facts(id: TargetId, kind: TargetKind, frame: HorizonFrame, enu: ArrayLi
   const cat = catalog();
   const out: { label: string; value: string }[] = [];
   const add = (label: string, value: string | null | undefined) => value && out.push({ label, value });
+  const tx = strings().object;
+  const target = strings().target;
   const constellation = () => cat.constellationById.get(constellationAt(frame, enu[0], enu[1], enu[2]))?.name;
 
   switch (kind) {
     case 'star': {
       const i = Number(id.slice(5));
       const named = cat.namedByIndex.get(i);
-      add('Tipo', 'Estrela');
-      add('Constelação', constellation());
-      add('Brilho aparente', `${fmt1(cat.mag[i])} (quanto menor, mais brilhante)`);
-      add('Distância', named?.ly ? `${named.ly < 100 ? fmt1(named.ly) : formatNumber(named.ly)} anos-luz` : null);
-      add('Catálogo Hipparcos', `HIP ${cat.hip[i]}`);
+      add(tx.type, target.star);
+      add(tx.constellation, constellation());
+      add(tx.magnitude, tx.magnitudeHint(fmt1(cat.mag[i])));
+      add(tx.distance, named?.ly ? tx.lightYears(named.ly < 100 ? fmt1(named.ly) : formatNumber(named.ly)) : null);
+      add(tx.hipparcos, `HIP ${cat.hip[i]}`);
       break;
     }
     case 'planet': {
       const p = frame.planets.find((x) => `planet:${x.id}` === id);
-      add('Tipo', 'Planeta');
-      add('Constelação', p ? cat.constellationById.get(p.constellation)?.name : null);
-      add('Brilho aparente', p ? fmt1(p.mag) : null);
-      add('Distância da Terra', p ? `${formatNumber((p.dist * 149_597_870.7) / 1e6)} milhões de km` : null);
+      add(tx.type, target.planet);
+      add(tx.constellation, p ? cat.constellationById.get(p.constellation)?.name : null);
+      add(tx.magnitude, p ? fmt1(p.mag) : null);
+      add(tx.distanceEarth, p ? tx.millionKm(formatNumber((p.dist * 149_597_870.7) / 1e6)) : null);
       break;
     }
     case 'dso': {
       const d = DSOS.find((x) => `dso:${x.id}` === id);
-      add('Tipo', d ? DSO_KIND_LABEL[d.kind] : null);
-      add('Constelação', constellation());
-      add('Brilho aparente', d && d.mag < 50 ? fmt1(d.mag) : null);
-      add('Tamanho no céu', d ? (d.size >= 1 ? `${fmt1(d.size)}°` : `${Math.round(d.size * 60)}′ de arco`) : null);
-      add('Distância', d ? `${formatNumber(d.ly)} anos-luz` : null);
+      add(tx.type, d ? DSO_KIND_LABEL[d.kind] : null);
+      add(tx.constellation, constellation());
+      add(tx.magnitude, d && d.mag < 50 ? fmt1(d.mag) : null);
+      add(tx.size, d ? (d.size >= 1 ? `${fmt1(d.size)}°` : tx.arcminutes(Math.round(d.size * 60))) : null);
+      add(tx.distance, d ? tx.lightYears(formatNumber(d.ly)) : null);
       break;
     }
     case 'constellation': {
       const c = cat.constellationById.get(id.slice(6));
-      add('Nome oficial', c?.latin);
-      add('Estrelas no desenho', c ? String(new Set(c.lines.flatMap((l) => Array.from({ length: l.length / 3 }, (_, k) => `${l[k * 3].toFixed(5)},${l[k * 3 + 1].toFixed(5)}`))).size) : null);
+      add(tx.officialName, c?.latin);
+      add(tx.starsInFigure, c ? String(new Set(c.lines.flatMap((l) => Array.from({ length: l.length / 3 }, (_, k) => `${l[k * 3].toFixed(5)},${l[k * 3 + 1].toFixed(5)}`))).size) : null);
       break;
     }
     case 'asterism': {
       const a = ASTERISMS.find((x) => `ast:${x.id}` === id);
-      add('Tipo', 'Asterismo: um desenho de estrelas que não é uma constelação oficial');
-      add('Estrelas', a ? String(a.members.length) : null);
-      add('Constelação', constellation());
+      add(tx.type, tx.asterismType);
+      add(tx.stars, a ? String(a.members.length) : null);
+      add(tx.constellation, constellation());
       break;
     }
     case 'moon':
-      add('Distância da Terra', `${formatNumber(moonKm)} km`);
+      add(tx.distanceEarth, `${formatNumber(moonKm)} km`);
       break;
     case 'sun':
-      add('Distância da Terra', '149,6 milhões de km');
-      add('Tipo', 'Anã amarela');
+      add(tx.distanceEarth, tx.millionKm(formatDecimal(149.6)));
+      add(tx.type, tx.yellowDwarf);
       break;
     case 'galactic':
-      add('Distância', '26 mil anos-luz');
-      add('Constelação', 'Sagitário');
+      add(tx.distance, tx.lightYears(formatNumber(26_000)));
+      add(tx.constellation, cat.constellationById.get('Sgr')?.name);
       break;
     case 'pole':
-      add('Altura acima do horizonte', formatDegrees(Math.abs(frame.latitude)));
+      add(tx.heightAbove, formatDegrees(Math.abs(frame.latitude)));
       break;
   }
   if (kind !== 'constellation' && kind !== 'asterism' && kind !== 'pole') {
@@ -135,7 +138,7 @@ function facts(id: TargetId, kind: TargetKind, frame: HorizonFrame, enu: ArrayLi
     const h = Math.floor(eq.ra);
     const m = Math.round((eq.ra - h) * 60);
     const d = Math.abs(eq.dec);
-    out.push({ label: 'Coordenadas', value: `AR ${h}h ${String(m % 60).padStart(2, '0')}m · Dec ${eq.dec < 0 ? '−' : '+'}${Math.floor(d)}° ${String(Math.round((d % 1) * 60)).padStart(2, '0')}′` });
+    out.push({ label: tx.coordinates, value: `${tx.ra} ${h}h ${String(m % 60).padStart(2, '0')}m · Dec ${eq.dec < 0 ? '−' : '+'}${Math.floor(d)}° ${String(Math.round((d % 1) * 60)).padStart(2, '0')}′` });
   }
   return out;
 }
@@ -147,11 +150,12 @@ function ObjectPage({ id, model }: { id: TargetId; model: Model }) {
   const favorite = useApp((s) => s.favorites.includes(id));
   const toggleFavorite = useApp((s) => s.toggleFavorite);
   const place = usePlace();
+  const tx = useT();
   const tz = place.tz;
   const { kind, info, pos, plan, frame, enu } = model;
   const chartHero = CHART_HERO.includes(kind);
   const wiki = useQuery({
-    queryKey: ['wiki', id],
+    queryKey: ['wiki', id, language()],
     queryFn: ({ signal }) => fetchWikiArticle(id, signal),
     staleTime: Infinity,
   });
@@ -179,7 +183,7 @@ function ObjectPage({ id, model }: { id: TargetId; model: Model }) {
               hapticOnPress="light"
               style={styles.headerBtn}
               accessibilityRole="button"
-              accessibilityLabel={favorite ? 'Remover dos favoritos' : 'Favoritar'}
+              accessibilityLabel={favorite ? tx.target.unfavorite : tx.target.favorite}
               accessibilityState={{ selected: favorite }}>
               <Icon name={favorite ? 'star' : 'starOutline'} size={18} color={favorite ? colors.accent : colors.text} />
             </PressableScale>
@@ -235,28 +239,28 @@ function ObjectPage({ id, model }: { id: TargetId; model: Model }) {
             <Icon name={up ? 'eye' : 'sunHorizon'} size={14} color={up ? colors.accent : colors.textSecondary} />
             <Text variant="subhead" style={{ flexShrink: 1 }}>
               {up
-                ? `No céu agora, ${formatDegrees(pos.alt)} acima do horizonte, a ${directionName(pos.az)}`
-                : `Abaixo do horizonte agora: ${formatDegrees(-pos.alt)} abaixo, a ${directionName(pos.az)}`}
+                ? tx.object.upNow(formatDegrees(pos.alt), directionName(pos.az))
+                : tx.object.downNow(formatDegrees(-pos.alt), directionName(pos.az))}
             </Text>
           </View>
 
-          <Button label="Ver no céu" icon="viewfinder" onPress={showInSky} />
+          <Button label={tx.object.showInSky} icon="viewfinder" onPress={showInSky} />
 
           {plan ? (
-            <Card title="Próximas 24 horas" icon="clock">
+            <Card title={tx.object.next24h} icon="clock">
               {plan.alwaysUp ? (
                 <Text variant="subhead" color={colors.textSecondary}>
-                  Nunca se põe daqui: gira o dia todo acima do horizonte.
+                  {tx.target.alwaysUp}
                 </Text>
               ) : plan.neverUp ? (
                 <Text variant="subhead" color={colors.textSecondary}>
-                  Não nasce nas próximas 24 horas vista daqui.
+                  {tx.target.neverUp}
                 </Text>
               ) : (
                 <View style={styles.row}>
-                  <Metric label="Nasce" value={t(plan.rise)} icon="arrowUp" />
-                  <Metric label="Se põe" value={t(plan.set)} icon="sunHorizon" />
-                  <Metric label="Altura máxima" value={formatDegrees(plan.maxAlt)} />
+                  <Metric label={tx.target.rises} value={t(plan.rise)} icon="arrowUp" />
+                  <Metric label={tx.target.sets} value={t(plan.set)} icon="sunHorizon" />
+                  <Metric label={tx.object.maxAlt} value={formatDegrees(plan.maxAlt)} />
                 </View>
               )}
               {plan.best ? (
@@ -265,7 +269,7 @@ function ObjectPage({ id, model }: { id: TargetId; model: Model }) {
                   <View style={styles.best}>
                     <Icon name="stars" size={14} color={colors.accent} />
                     <Text variant="subhead" style={{ flex: 1 }}>
-                      {plan.best.dark ? 'Melhor horário à noite' : 'Melhor horário no crepúsculo'}
+                      {plan.best.dark ? tx.object.bestNight : tx.object.bestTwilight}
                     </Text>
                     <Text variant="headline" style={{ fontVariant: ['tabular-nums'] }}>
                       {t(plan.best.time)} · {formatDegrees(plan.best.alt)}
@@ -280,13 +284,13 @@ function ObjectPage({ id, model }: { id: TargetId; model: Model }) {
 
           {!chartHero && kind !== 'sun' ? (
             <Card
-              title="Onde fica no céu"
+              title={tx.object.whereTitle}
               icon="compass"
               padded={false}
               accessory={
                 up ? null : (
                   <Text variant="caption" color={colors.textTertiary}>
-                    Abaixo do horizonte
+                    {tx.target.belowHorizon}
                   </Text>
                 )
               }>
@@ -297,7 +301,7 @@ function ObjectPage({ id, model }: { id: TargetId; model: Model }) {
           ) : null}
 
           {model.facts.length ? (
-            <Card title="Ficha" icon="info">
+            <Card title={tx.object.facts} icon="info">
               {model.facts.map((f, i) => (
                 <View key={f.label}>
                   {i ? <Divider /> : null}
@@ -316,7 +320,7 @@ function ObjectPage({ id, model }: { id: TargetId; model: Model }) {
 
           {wiki.data?.extract || photo ? (
             <Text variant="caption" color={colors.textTertiary} align="center">
-              {photo ? 'Imagem e texto da Wikipédia (CC BY-SA)' : 'Texto da Wikipédia (CC BY-SA)'}
+              {photo ? tx.object.creditImage : tx.object.creditText}
             </Text>
           ) : null}
         </View>
@@ -327,9 +331,10 @@ function ObjectPage({ id, model }: { id: TargetId; model: Model }) {
 }
 
 function About({ info, extract, url, loading, failed, onRetry }: { info: Model['info']; extract: string | null; url: string | null; loading: boolean; failed: boolean; onRetry: () => void }) {
+  const tx = useT();
   if (!info.note && !info.distance && !info.flag && !extract && !loading && !failed) return null;
   return (
-    <Card title="Sobre" icon="sparkle">
+    <Card title={tx.settings.about} icon="sparkle">
       <View style={{ gap: space.sm }}>
         {info.note ? <Text variant="body">{info.note}</Text> : null}
         {info.distance ? (
@@ -341,12 +346,12 @@ function About({ info, extract, url, loading, failed, onRetry }: { info: Model['
           <View style={styles.flag}>
             <View style={styles.flagMark} />
             <Text variant="subhead" color={colors.textSecondary} style={{ flex: 1 }}>
-              Na bandeira do Brasil, representa {info.flag}.
+              {tx.object.flag(info.flag)}
             </Text>
           </View>
         ) : null}
         {loading ? (
-          <View style={{ gap: 8 }} accessibilityLabel="Carregando descrição">
+          <View style={{ gap: 8 }} accessibilityLabel={tx.object.loading}>
             {[1, 0.94, 0.62].map((w, i) => (
               <View key={i} style={[styles.skeleton, { width: `${w * 100}%` }]} />
             ))}
@@ -360,7 +365,7 @@ function About({ info, extract, url, loading, failed, onRetry }: { info: Model['
             {url ? (
               <PressableScale onPress={() => WebBrowser.openBrowserAsync(url)} hapticOnPress="soft" style={styles.link} accessibilityRole="link">
                 <Icon name="globe" size={13} color={colors.text} />
-                <Text variant="subhead">Ler na Wikipédia</Text>
+                <Text variant="subhead">{tx.object.readWiki}</Text>
                 <Icon name="chevronRight" size={11} color={colors.textSecondary} />
               </PressableScale>
             ) : null}
@@ -368,7 +373,7 @@ function About({ info, extract, url, loading, failed, onRetry }: { info: Model['
         ) : failed ? (
           <PressableScale onPress={onRetry} hapticOnPress="soft" style={styles.link} accessibilityRole="button">
             <Icon name="arrowCounter" size={13} color={colors.text} />
-            <Text variant="subhead">Sem conexão para a descrição completa. Tentar de novo</Text>
+            <Text variant="subhead">{tx.object.retry}</Text>
           </PressableScale>
         ) : null}
       </View>
@@ -378,16 +383,17 @@ function About({ info, extract, url, loading, failed, onRetry }: { info: Model['
 
 function Missing() {
   const insets = useSafeAreaInsets();
+  const tx = useT();
   return (
     <View style={[styles.root, styles.centred, { padding: space.xl, paddingTop: insets.top + space.xxl, gap: space.md }]}>
       <Icon name="stars" size={36} color={colors.textSecondary} />
       <Text variant="title3" align="center">
-        Objeto não encontrado
+        {tx.object.missingTitle}
       </Text>
       <Text variant="subhead" color={colors.textSecondary} align="center">
-        Ele não está no catálogo desta versão do Solune.
+        {tx.object.missingBody}
       </Text>
-      <Button label="Voltar" variant="secondary" onPress={() => router.back()} />
+      <Button label={tx.common.back} variant="secondary" onPress={() => router.back()} />
     </View>
   );
 }

@@ -26,6 +26,7 @@ import { SkyBackground } from '@/components/SkyBackground';
 import { SunGlyph } from '@/components/SunGlyph';
 import { Text } from '@/components/Text';
 import { Toggle } from '@/components/Toggle';
+import { strings, useT } from '@/i18n';
 import { haptic } from '@/lib/haptics';
 import { refreshCurrentLocation } from '@/lib/location';
 import { requestNotificationPermission, rescheduleNotifications } from '@/lib/notifications';
@@ -47,12 +48,12 @@ const SKY_ALT: Record<Step, number> = {
   done: 3,
 };
 
-const INTERESTS: { key: Interest; label: string; icon: IconName }[] = [
-  { key: 'photo', label: 'Fotografia', icon: 'camera' },
-  { key: 'wellbeing', label: 'Bem-estar e sono', icon: 'heart' },
-  { key: 'astro', label: 'Astronomia', icon: 'telescope' },
-  { key: 'nature', label: 'Natureza e trilhas', icon: 'leaf' },
-  { key: 'ritual', label: 'Contemplação', icon: 'sparkle' },
+const INTERESTS: { key: Interest; icon: IconName }[] = [
+  { key: 'photo', icon: 'camera' },
+  { key: 'wellbeing', icon: 'heart' },
+  { key: 'astro', icon: 'telescope' },
+  { key: 'nature', icon: 'leaf' },
+  { key: 'ritual', icon: 'sparkle' },
 ];
 
 const ALERTS_FOR: Record<Interest, (keyof NotificationPrefs)[]> = {
@@ -68,6 +69,7 @@ export default function Onboarding() {
   const [index, setIndex] = useState(0);
   const step = STEPS[index];
   const sky = useSharedValue(-14);
+  const tx = useT();
 
   useEffect(() => {
     sky.set(withTiming(SKY_ALT[step], { duration: index === 0 ? 2600 : 900, easing: EASE_OUT }));
@@ -106,7 +108,7 @@ export default function Onboarding() {
       <View style={[styles.top, { paddingTop: insets.top + space.xs }]}>
         <View style={{ width: 40, height: 40 }}>
           {index > 0 && step !== 'done' ? (
-            <PressableScale onPress={back} hapticOnPress={null} style={styles.back} accessibilityLabel="Voltar">
+            <PressableScale onPress={back} hapticOnPress={null} style={styles.back} accessibilityLabel={tx.common.back}>
               <Icon name="chevronLeft" size={18} color={colors.text} />
             </PressableScale>
           ) : null}
@@ -120,15 +122,16 @@ export default function Onboarding() {
 }
 
 function renderStep(step: Step, next: () => void) {
+  const tx = strings().onboarding;
   switch (step) {
     case 'welcome':
       return <Welcome onNext={next} />;
     case 'sun':
-      return <Slide art={<SunArt />} title="Cada minuto de luz" body="Nascer, pôr, hora dourada e hora azul. Arraste o trajeto do sol para ver o céu em qualquer horário." onNext={next} />;
+      return <Slide art={<SunArt />} title={tx.sunTitle} body={tx.sunBody} onNext={next} />;
     case 'moon':
-      return <Slide art={<MoonArt />} title="A lua, fase a fase" body="Iluminação, nascer e ocaso, superluas e eclipses. Arraste a lua para viajar pelos dias." onNext={next} />;
+      return <Slide art={<MoonArt />} title={tx.moonTitle} body={tx.moonBody} onNext={next} />;
     case 'ar':
-      return <Slide art={<ArArt />} title="Aponte para o céu" body="Levante o celular e veja o caminho exato do sol e da lua sobre a paisagem, a qualquer hora do dia." onNext={next} />;
+      return <Slide art={<ArArt />} title={tx.arTitle} body={tx.arBody} onNext={next} />;
     case 'interests':
       return <Interests onNext={next} />;
     case 'location':
@@ -150,6 +153,7 @@ function Footer({ children }: { children: React.ReactNode }) {
 }
 
 function Slide({ art, title, body, onNext }: { art: React.ReactNode; title: string; body: string; onNext: () => void }) {
+  const tx = useT();
   return (
     <View style={{ flex: 1 }}>
       <Appear delay={0} y={0} scale={0.94} duration={760} style={styles.art}>{art}</Appear>
@@ -162,7 +166,7 @@ function Slide({ art, title, body, onNext }: { art: React.ReactNode; title: stri
         </Text>
       </Appear>
       <Footer>
-        <Button label="Continuar" onPress={onNext} />
+        <Button label={tx.common.continue} onPress={onNext} />
       </Footer>
     </View>
   );
@@ -172,6 +176,7 @@ function Welcome({ onNext }: { onNext: () => void }) {
   const { width } = useWindowDimensions();
   const rise = useSharedValue(0);
   const reduce = useReducedMotion();
+  const tx = useT();
   useEffect(() => {
     rise.set(reduce ? withTiming(1, { duration: 200 }) : withTiming(1, { duration: 2600, easing: EASE_OUT }));
   }, [rise, reduce]);
@@ -193,14 +198,14 @@ function Welcome({ onNext }: { onNext: () => void }) {
       <LinearGradient colors={['#060A1C', 'rgba(6,10,28,0.7)', 'rgba(6,10,28,0)']} locations={[0, 0.45, 1]} style={{ paddingTop: space.lg }}>
         <Appear delay={110} y={14} style={styles.copy}>
           <Text variant="title1" align="center" style={{ fontSize: 38, lineHeight: 44 }}>
-            Siga a luz do céu
+            {tx.onboarding.welcomeTitle}
           </Text>
           <Text variant="body" color={colors.textSecondary} align="center">
-            Horários exatos do sol, fases da lua e o caminho dos astros, onde quer que você esteja.
+            {tx.onboarding.welcomeBody}
           </Text>
         </Appear>
         <Footer>
-          <Button label="Começar" onPress={onNext} />
+          <Button label={tx.onboarding.start} onPress={onNext} />
         </Footer>
       </LinearGradient>
     </View>
@@ -211,6 +216,7 @@ function SunArt() {
   const { width } = useWindowDimensions();
   const w = Math.min(width - 48, 340);
   const h = 190;
+  const tx = useT();
   const t = useSharedValue(0);
   useEffect(() => {
     t.set(withRepeat(withTiming(1, { duration: 5200, easing: Easing.inOut(Easing.quad) }), -1, true));
@@ -237,8 +243,8 @@ function SunArt() {
         </Animated.View>
       </View>
       <View style={styles.artLegend}>
-        <Tag color={colors.golden} label="Hora dourada" />
-        <Tag color={colors.blue} label="Hora azul" />
+        <Tag color={colors.golden} label={tx.sun.golden} />
+        <Tag color={colors.blue} label={tx.sun.blue} />
       </View>
     </View>
   );
@@ -308,6 +314,7 @@ function ArArt() {
 
 function Interests({ onNext }: { onNext: () => void }) {
   const [picked, setPicked] = useState<Interest[]>(useApp.getState().interests);
+  const tx = useT();
   const toggle = (k: Interest) => {
     haptic.tick();
     setPicked((p) => (p.includes(k) ? p.filter((x) => x !== k) : [...p, k]));
@@ -325,10 +332,10 @@ function Interests({ onNext }: { onNext: () => void }) {
     <View style={{ flex: 1 }}>
       <Appear delay={110} y={14} style={[styles.copy, { marginTop: space.xl }]}>
         <Text variant="title1" align="center">
-          O que te faz olhar para cima?
+          {tx.onboarding.interestsTitle}
         </Text>
         <Text variant="body" color={colors.textSecondary} align="center">
-          Escolha quantos quiser. Vamos ajustar seus lembretes.
+          {tx.onboarding.interestsBody}
         </Text>
       </Appear>
       <View style={styles.options}>
@@ -336,13 +343,13 @@ function Interests({ onNext }: { onNext: () => void }) {
           {INTERESTS.map((o, i) => (
             <View key={o.key}>
               {i ? <View style={styles.groupDivider} /> : null}
-              <OptionRow label={o.label} icon={o.icon} selected={picked.includes(o.key)} onPress={() => toggle(o.key)} />
+              <OptionRow label={tx.onboarding.interests[o.key]} icon={o.icon} selected={picked.includes(o.key)} onPress={() => toggle(o.key)} />
             </View>
           ))}
         </Animated.View>
       </View>
       <Footer>
-        <Button label="Continuar" onPress={save} />
+        <Button label={tx.common.continue} onPress={save} />
       </Footer>
     </View>
   );
@@ -397,6 +404,7 @@ function Glyph({ icon, size = 120 }: { icon: IconName; size?: number }) {
 function LocationStep({ onNext }: { onNext: () => void }) {
   const current = useApp((s) => s.current);
   const [status, setStatus] = useState<'idle' | 'busy' | 'denied' | 'error'>('idle');
+  const tx = useT();
   const locate = async () => {
     setStatus('busy');
     const res = await refreshCurrentLocation(true);
@@ -416,27 +424,27 @@ function LocationStep({ onNext }: { onNext: () => void }) {
       </Appear>
       <Appear delay={110} y={14} style={styles.copy}>
         <Text variant="title1" align="center">
-          {current ? current.name : 'Onde fica o seu céu?'}
+          {current ? current.name : tx.onboarding.locationTitle}
         </Text>
         <Text variant="body" color={colors.textSecondary} align="center">
           {status === 'denied'
-            ? 'Sem permissão, usaremos São Paulo. Você pode trocar o local a qualquer momento.'
+            ? tx.onboarding.locationDenied(DEFAULT_PLACE.name)
             : status === 'error'
-              ? 'Não conseguimos sua posição agora. Tente de novo ou escolha depois.'
+              ? tx.onboarding.locationError
               : current
-                ? 'Os horários já são calculados para onde você está.'
-                : 'Sua localização torna cada horário preciso ao minuto. Ela fica só no seu aparelho.'}
+                ? tx.onboarding.locationReady
+                : tx.onboarding.locationBody}
         </Text>
       </Appear>
       <Footer>
         {current ? (
-          <Button label="Continuar" onPress={onNext} />
+          <Button label={tx.common.continue} onPress={onNext} />
         ) : (
-          <Button label="Usar minha localização" loading={status === 'busy'} onPress={locate} />
+          <Button label={tx.locations.useMine} loading={status === 'busy'} onPress={locate} />
         )}
         {current ? null : (
           <Button
-            label="Escolher depois"
+            label={tx.onboarding.later}
             variant="quiet"
             onPress={() => {
               useApp.getState().selectPlace('current');
@@ -451,6 +459,7 @@ function LocationStep({ onNext }: { onNext: () => void }) {
 
 function NotificationsStep({ onNext }: { onNext: () => void }) {
   const prefs = useApp((s) => s.notifications);
+  const tx = useT();
   const enable = async () => {
     const ok = await requestNotificationPermission();
     useApp.getState().setNotificationsEnabled(ok);
@@ -461,11 +470,11 @@ function NotificationsStep({ onNext }: { onNext: () => void }) {
     onNext();
   };
   const items: { key: keyof NotificationPrefs; label: string; icon: IconName }[] = [
-    { key: 'sunrise', label: 'Nascer do sol', icon: 'sunrise' },
-    { key: 'sunset', label: 'Pôr do sol', icon: 'sunset' },
-    { key: 'golden', label: 'Hora dourada', icon: 'sparkle' },
-    { key: 'fullMoon', label: 'Lua cheia', icon: 'moonFull' },
-    { key: 'newMoon', label: 'Lua nova', icon: 'stars' },
+    { key: 'sunrise', label: tx.sun.sunrise, icon: 'sunrise' },
+    { key: 'sunset', label: tx.sun.sunset, icon: 'sunset' },
+    { key: 'golden', label: tx.sun.golden, icon: 'sparkle' },
+    { key: 'fullMoon', label: tx.moon.phase.full, icon: 'moonFull' },
+    { key: 'newMoon', label: tx.moon.phase.new, icon: 'stars' },
   ];
   return (
     <View style={{ flex: 1 }}>
@@ -474,10 +483,10 @@ function NotificationsStep({ onNext }: { onNext: () => void }) {
       </Appear>
       <Appear delay={110} y={14} style={styles.copy}>
         <Text variant="title1" align="center">
-          Não perca a melhor luz
+          {tx.onboarding.notifTitle}
         </Text>
         <Text variant="body" color={colors.textSecondary} align="center">
-          Avisamos 15 minutos antes. Escolha o que importa para você.
+          {tx.onboarding.notifBody}
         </Text>
       </Appear>
       <View style={{ paddingHorizontal: space.md, paddingBottom: space.lg }}>
@@ -503,8 +512,8 @@ function NotificationsStep({ onNext }: { onNext: () => void }) {
         </View>
       </View>
       <Footer>
-        <Button label="Ativar lembretes" onPress={enable} />
-        <Button label="Agora não" variant="quiet" onPress={onNext} />
+        <Button label={tx.settings.enableReminders} onPress={enable} />
+        <Button label={tx.common.notNow} variant="quiet" onPress={onNext} />
       </Footer>
     </View>
   );
@@ -513,6 +522,7 @@ function NotificationsStep({ onNext }: { onNext: () => void }) {
 function Done() {
   const place = useApp((s) => s.current) ?? DEFAULT_PLACE;
   const ring = useSharedValue(0);
+  const tx = useT();
   useEffect(() => {
     haptic.success();
     ring.set(withDelay(200, withTiming(1, { duration: 700, easing: EASE_OUT })));
@@ -533,14 +543,14 @@ function Done() {
       </Appear>
       <Appear delay={110} y={14} style={styles.copy}>
         <Text variant="largeTitle" align="center">
-          Tudo pronto
+          {tx.onboarding.doneTitle}
         </Text>
         <Text variant="body" color={colors.textSecondary} align="center">
-          Seu céu em {place.name} já está calculado. Registre nasceres, pores do sol e luas para formar uma sequência.
+          {tx.onboarding.doneBody(place.name)}
         </Text>
       </Appear>
       <Footer>
-        <Button label="Ver meu céu" onPress={finish} />
+        <Button label={tx.onboarding.seeSky} onPress={finish} />
       </Footer>
     </View>
   );

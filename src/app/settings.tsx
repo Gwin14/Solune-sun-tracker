@@ -10,6 +10,7 @@ import { Segmented } from '@/components/Segmented';
 import { Text } from '@/components/Text';
 import { Toggle } from '@/components/Toggle';
 import { usePlace } from '@/hooks/useAstro';
+import { deviceLanguage, LANGUAGES, useLanguage, useT, type LanguagePref } from '@/i18n';
 import { haptic } from '@/lib/haptics';
 import { rescheduleNotifications, requestNotificationPermission } from '@/lib/notifications';
 import { useApp, type NotificationPrefs } from '@/store/app';
@@ -19,15 +20,23 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const place = usePlace();
   const s = useApp();
+  const tx = useT();
+  const langPref = useLanguage((l) => l.pref);
+  const setLanguage = (p: LanguagePref) => {
+    if (p === langPref) return;
+    haptic.tick();
+    useLanguage.getState().setPref(p);
+  };
+  const deviceName = LANGUAGES.find((l) => l.id === deviceLanguage())!.native;
 
   const toggleNotifications = async (v: boolean) => {
     if (v) {
       const ok = await requestNotificationPermission();
       if (!ok) {
         haptic.warning();
-        Alert.alert('Notificações desativadas', 'Permita notificações para o Solune nos ajustes do sistema.', [
-          { text: 'Agora não', style: 'cancel' },
-          { text: 'Abrir ajustes', onPress: () => Linking.openSettings() },
+        Alert.alert(tx.settings.notificationsOffTitle, tx.settings.notificationsOffBody, [
+          { text: tx.common.notNow, style: 'cancel' },
+          { text: tx.settings.openSettings, onPress: () => Linking.openSettings() },
         ]);
         return;
       }
@@ -44,61 +53,75 @@ export default function SettingsScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.inkSheet }}>
       <View style={styles.header}>
-        <Text variant="title2">Ajustes</Text>
-        <PressableScale onPress={() => router.back()} style={styles.done} hapticOnPress="soft" accessibilityRole="button" accessibilityLabel="Concluir">
+        <Text variant="title2">{tx.settings.title}</Text>
+        <PressableScale onPress={() => router.back()} style={styles.done} hapticOnPress="soft" accessibilityRole="button" accessibilityLabel={tx.common.done}>
           <Text variant="headline" color={colors.accent}>
-            OK
+            {tx.common.ok}
           </Text>
         </PressableScale>
       </View>
       <ScrollView contentContainerStyle={{ padding: space.md, paddingBottom: insets.bottom + space.xxl, gap: space.lg }}>
-        <Group title="Local">
+        <Group title={tx.settings.place}>
           <Row icon={place.id === 'current' ? 'location' : 'pin'} label={place.name} detail={place.region} onPress={() => router.push('/locations')} chevron />
         </Group>
 
-        <Group title="Exibição">
-          <Row icon="clock" label="Formato 24 horas">
+        <Group title={tx.settings.language} footer={tx.settings.languageFooter}>
+          <Row icon="globe" label={tx.settings.automatic} detail={deviceName} onPress={() => setLanguage('auto')}>
+            {langPref === 'auto' ? <Icon name="check" size={16} color={colors.accent} /> : null}
+          </Row>
+          {LANGUAGES.map((l) => (
+            <View key={l.id}>
+              <Divider style={styles.inset} />
+              <Row label={l.native} onPress={() => setLanguage(l.id)}>
+                {langPref === l.id ? <Icon name="check" size={16} color={colors.accent} /> : null}
+              </Row>
+            </View>
+          ))}
+        </Group>
+
+        <Group title={tx.settings.display}>
+          <Row icon="clock" label={tx.settings.clock24}>
             <Toggle value={s.use24h} onValueChange={(v) => { haptic.tick(); s.setUse24h(v); }} />
           </Row>
           <Divider style={styles.inset} />
-          <Row icon="hand" label="Vibração ao interagir">
+          <Row icon="hand" label={tx.settings.haptics}>
             <Toggle value={s.haptics} onValueChange={(v) => { s.setHaptics(v); haptic.tick(); }} />
           </Row>
         </Group>
 
-        <Group title="Lembretes" footer="Os lembretes são calculados para os próximos 7 dias no local selecionado.">
-          <Row icon="bell" label="Ativar lembretes">
+        <Group title={tx.settings.reminders} footer={tx.settings.remindersFooter}>
+          <Row icon="bell" label={tx.settings.enableReminders}>
             <Toggle value={s.notificationsEnabled} onValueChange={toggleNotifications} />
           </Row>
           {s.notificationsEnabled ? (
             <>
               <Divider style={styles.inset} />
-              <Row icon="sunrise" label="Nascer do sol">
+              <Row icon="sunrise" label={tx.sun.sunrise}>
                 <Toggle value={s.notifications.sunrise} onValueChange={(v) => setPref('sunrise', v)} />
               </Row>
               <Divider style={styles.inset} />
-              <Row icon="sunset" label="Pôr do sol">
+              <Row icon="sunset" label={tx.sun.sunset}>
                 <Toggle value={s.notifications.sunset} onValueChange={(v) => setPref('sunset', v)} />
               </Row>
               <Divider style={styles.inset} />
-              <Row icon="sparkle" label="Hora dourada">
+              <Row icon="sparkle" label={tx.sun.golden}>
                 <Toggle value={s.notifications.golden} onValueChange={(v) => setPref('golden', v)} />
               </Row>
               <Divider style={styles.inset} />
-              <Row icon="moonFull" label="Lua cheia">
+              <Row icon="moonFull" label={tx.moon.phase.full}>
                 <Toggle value={s.notifications.fullMoon} onValueChange={(v) => setPref('fullMoon', v)} />
               </Row>
               <Divider style={styles.inset} />
-              <Row icon="stars" label="Lua nova">
+              <Row icon="stars" label={tx.moon.phase.new}>
                 <Toggle value={s.notifications.newMoon} onValueChange={(v) => setPref('newMoon', v)} />
               </Row>
               <Divider style={styles.inset} />
               <View style={{ padding: space.md, gap: space.xs }}>
                 <Text variant="callout" color={colors.textSecondary}>
-                  Avisar com antecedência
+                  {tx.settings.leadTime}
                 </Text>
                 <Segmented
-                  options={['Na hora', '15 min', '30 min']}
+                  options={[tx.settings.onTime, '15 min', '30 min']}
                   index={[0, 15, 30].indexOf(s.notifications.leadMinutes)}
                   onChange={(i) => setPref('leadMinutes', ([0, 15, 30] as const)[i])}
                 />
@@ -107,10 +130,10 @@ export default function SettingsScreen() {
           ) : null}
         </Group>
 
-        <Group title="Sobre">
-          <Row icon="arrowCounter" label="Rever introdução" onPress={() => s.resetOnboarding()} chevron />
+        <Group title={tx.settings.about}>
+          <Row icon="arrowCounter" label={tx.settings.replayIntro} onPress={() => s.resetOnboarding()} chevron />
           <Divider style={styles.inset} />
-          <Row icon="info" label="Cálculos astronômicos" detail="Astronomy Engine · precisão de ~1 minuto" />
+          <Row icon="info" label={tx.settings.calculations} detail={tx.settings.calculationsDetail} />
         </Group>
         <Text variant="caption" color={colors.textTertiary} align="center">
           Solune 1.0
@@ -136,12 +159,16 @@ function Group({ title, children, footer }: { title: string; children: ReactNode
   );
 }
 
-function Row({ icon, label, detail, children, onPress, chevron }: { icon: IconName; label: string; detail?: string; children?: ReactNode; onPress?: () => void; chevron?: boolean }) {
+function Row({ icon, label, detail, children, onPress, chevron }: { icon?: IconName; label: string; detail?: string; children?: ReactNode; onPress?: () => void; chevron?: boolean }) {
   const body = (
     <View style={styles.row}>
-      <View style={styles.rowIcon}>
-        <Icon name={icon} size={15} color={colors.textSecondary} />
-      </View>
+      {icon ? (
+        <View style={styles.rowIcon}>
+          <Icon name={icon} size={15} color={colors.textSecondary} />
+        </View>
+      ) : (
+        <View style={styles.rowIconSpace} />
+      )}
       <View style={{ flex: 1 }}>
         <Text variant="body">{label}</Text>
         {detail ? (
@@ -167,6 +194,7 @@ const styles = StyleSheet.create({
   done: { paddingHorizontal: space.xs, height: 44, justifyContent: 'center' },
   group: { backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: radius.card, borderCurve: 'continuous', overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, minHeight: 56, paddingVertical: space.xs },
+  rowIconSpace: { width: 28 },
   rowIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.fill, alignItems: 'center', justifyContent: 'center' },
   inset: { marginLeft: 58 },
 });

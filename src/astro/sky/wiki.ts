@@ -1,3 +1,5 @@
+import { language, strings, type Language } from '@/i18n';
+
 import { catalog } from './catalog';
 import { PROPER_NAMES } from './data';
 import { PLANETS } from './engine';
@@ -5,11 +7,11 @@ import { ASTERISMS, DSOS } from './names';
 import { kindOf, type TargetId } from './targets';
 
 /**
- * Pictures and longer descriptions for an object page come from Wikipedia: the Portuguese
- * article for the text, and whichever article has a lead image for the picture.
+ * Pictures and longer descriptions for an object page come from Wikipedia: the article in
+ * the reader's language for the text, and whichever article has a lead image for the picture.
  */
 
-type Candidate = { lang: 'pt' | 'en'; title: string };
+type Candidate = { lang: Language; title: string };
 
 export type WikiImage = { uri: string; width: number; height: number };
 
@@ -52,44 +54,51 @@ const ASTERISM_EN: Record<string, string> = {
   falsoCruzeiro: 'False Cross',
 };
 
-/** Article titles to try, most specific first. */
+/**
+ * Article titles to try, most specific first: the active language's article (where the
+ * text comes from), then English, which often has the better picture.
+ */
 export function wikiCandidates(id: TargetId): Candidate[] {
   const cat = catalog();
-  const pt = (title: string): Candidate => ({ lang: 'pt', title });
+  const lang = language();
+  const w = strings().wiki;
+  const local = (title: string): Candidate => ({ lang, title });
   const en = (title: string): Candidate => ({ lang: 'en', title });
+  const localFirst = (titles: string[], english: string[]): Candidate[] =>
+    lang === 'en' ? [...new Set([...english, ...titles])].map(en) : [...titles.map(local), ...english.map(en)];
   switch (kindOf(id)) {
     case 'star': {
       const i = Number(id.slice(5));
       const named = cat.namedByIndex.get(i);
-      // The IAU name ("Sirius") finds the article when the Portuguese spelling ("Sírius") doesn't.
+      // The IAU name ("Sirius") finds the article when a local spelling ("Sírius") doesn't.
       const iau = PROPER_NAMES[cat.hip[i]];
       const names = [...new Set([named?.name, iau].filter((n): n is string => !!n))];
-      return [...names.flatMap((n) => [pt(`${n} (estrela)`), pt(n)]), ...names.flatMap((n) => [en(`${n} (star)`), en(n)])];
+      return localFirst(names.flatMap((n) => [`${n} (${w.star})`, n]), names.flatMap((n) => [`${n} (star)`, n]));
     }
     case 'planet': {
       const p = PLANETS.find((x) => `planet:${x.id}` === id);
-      return p ? [pt(`${p.name} (planeta)`), en(PLANET_EN[p.id])] : [];
+      return p ? localFirst([`${p.name} (${w.planet})`, p.name], [PLANET_EN[p.id]]) : [];
     }
     case 'dso': {
       const d = DSOS.find((x) => `dso:${x.id}` === id);
-      return d ? [pt(d.name), ...(DSO_EN[d.id] ? [en(DSO_EN[d.id])] : [])] : [];
+      return d ? localFirst([d.name], DSO_EN[d.id] ? [DSO_EN[d.id]] : []) : [];
     }
     case 'constellation': {
       const c = cat.constellationById.get(id.slice(6));
-      return c ? [pt(`${c.name} (constelação)`), pt(c.name), en(`${c.latin} (constellation)`), en(c.latin)] : [];
+      return c ? localFirst([`${c.name} (${w.constellation})`, c.name], [`${c.latin} (constellation)`, c.latin]) : [];
     }
     case 'asterism': {
       const a = ASTERISMS.find((x) => `ast:${x.id}` === id);
-      return a ? [pt(a.name), ...(ASTERISM_EN[a.id] ? [en(ASTERISM_EN[a.id])] : [])] : [];
+      return a ? localFirst([a.name], ASTERISM_EN[a.id] ? [ASTERISM_EN[a.id]] : []) : [];
     }
     case 'galactic':
-      return [pt('Centro galáctico'), en('Galactic Center')];
+      return localFirst([w.galacticCenter], ['Galactic Center']);
     case 'pole':
-      return [pt('Polo celeste'), en('Celestial pole')];
+      return localFirst([w.celestialPole], ['Celestial pole']);
     case 'moon':
-      return [pt('Lua'), en('Moon')];
+      return localFirst([w.moon], ['Moon']);
     case 'sun':
-      return [pt('Sol'), en('Sun')];
+      return localFirst([w.sun], ['Sun']);
   }
 }
 
@@ -130,13 +139,14 @@ async function summary({ lang, title }: Candidate, signal?: AbortSignal): Promis
 
 export async function fetchWikiArticle(id: TargetId, signal?: AbortSignal): Promise<WikiArticle> {
   const out: WikiArticle = { extract: null, url: null, image: null };
+  const lang = language();
   for (const c of wikiCandidates(id)) {
     if (out.extract && out.image) break;
-    // Text only from the Portuguese article; English is tried for the picture alone.
-    if (c.lang === 'pt' && out.extract) continue;
+    // Text only from the article in the reader's language; others are tried for the picture alone.
+    if (c.lang === lang && out.extract) continue;
     const s = await summary(c, signal);
     if (!s) continue;
-    if (c.lang === 'pt' && s.extract) {
+    if (c.lang === lang && s.extract) {
       out.extract = s.extract;
       out.url = s.content_urls?.mobile?.page ?? null;
     }

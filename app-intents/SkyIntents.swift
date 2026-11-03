@@ -30,18 +30,43 @@ struct SkySnapshot {
     zip(times(startKey), times(endKey)).first { $0.1 > now }.map { (start: $0.0, end: $0.1) }
   }
 
+  /// The language Siri answers in: the app localization iOS picked for this user.
+  static var locale: Locale {
+    Locale(identifier: Bundle.main.preferredLocalizations.first ?? "pt-BR")
+  }
+
   static func time(_ date: Date) -> String {
-    date.formatted(.dateTime.hour().minute().locale(Locale(identifier: "pt_BR")))
+    date.formatted(.dateTime.hour().minute().locale(locale))
   }
 
   static func day(_ date: Date) -> String {
-    if Calendar.current.isDateInToday(date) { return "hoje" }
-    if Calendar.current.isDateInTomorrow(date) { return "amanhã" }
-    return date.formatted(.dateTime.weekday(.wide).locale(Locale(identifier: "pt_BR")))
+    if Calendar.current.isDateInToday(date) { return String(localized: "hoje") }
+    if Calendar.current.isDateInTomorrow(date) { return String(localized: "amanhã") }
+    return date.formatted(.dateTime.weekday(.wide).locale(locale))
+  }
+
+  /// Moon phase name from the key JavaScript publishes, in Siri's language.
+  static func phase(_ key: String) -> String? {
+    switch key {
+    case "new": return String(localized: "Lua nova")
+    case "waxingCrescent": return String(localized: "Lua crescente")
+    case "firstQuarter": return String(localized: "Quarto crescente")
+    case "waxingGibbous": return String(localized: "Gibosa crescente")
+    case "full": return String(localized: "Lua cheia")
+    case "waningGibbous": return String(localized: "Gibosa minguante")
+    case "lastQuarter": return String(localized: "Quarto minguante")
+    case "waningCrescent": return String(localized: "Lua minguante")
+    default: return nil
+    }
   }
 }
 
-private let staleDialog: IntentDialog = "Abra o Solune uma vez para eu calcular o céu do seu lugar."
+/// Spoken answers are built as localized Strings (keys in Localizable.strings use %@), then wrapped.
+private func say(_ text: String) -> IntentDialog {
+  IntentDialog(stringLiteral: text)
+}
+
+private var staleDialog: IntentDialog { say(String(localized: "Abra o Solune uma vez para eu calcular o céu do seu lugar.")) }
 
 struct NextSunsetIntent: AppIntent {
   static let title: LocalizedStringResource = "Próximo pôr do sol"
@@ -51,7 +76,7 @@ struct NextSunsetIntent: AppIntent {
     guard let sky = await SkySnapshot.load(), let at = sky.next("sunset") else {
       return .result(value: nil, dialog: staleDialog)
     }
-    return .result(value: at, dialog: "O sol se põe \(SkySnapshot.day(at)) às \(SkySnapshot.time(at)) em \(sky.place).")
+    return .result(value: at, dialog: say(String(localized: "O sol se põe \(SkySnapshot.day(at)) às \(SkySnapshot.time(at)) em \(sky.place).")))
   }
 }
 
@@ -63,7 +88,7 @@ struct NextSunriseIntent: AppIntent {
     guard let sky = await SkySnapshot.load(), let at = sky.next("sunrise") else {
       return .result(value: nil, dialog: staleDialog)
     }
-    return .result(value: at, dialog: "O sol nasce \(SkySnapshot.day(at)) às \(SkySnapshot.time(at)) em \(sky.place).")
+    return .result(value: at, dialog: say(String(localized: "O sol nasce \(SkySnapshot.day(at)) às \(SkySnapshot.time(at)) em \(sky.place).")))
   }
 }
 
@@ -76,9 +101,9 @@ struct GoldenHourIntent: AppIntent {
       return .result(dialog: staleDialog)
     }
     if w.start <= Date() {
-      return .result(dialog: "A hora dourada está acontecendo agora e vai até \(SkySnapshot.time(w.end)).")
+      return .result(dialog: say(String(localized: "A hora dourada está acontecendo agora e vai até \(SkySnapshot.time(w.end)).")))
     }
-    return .result(dialog: "A próxima hora dourada é \(SkySnapshot.day(w.start)), das \(SkySnapshot.time(w.start)) às \(SkySnapshot.time(w.end)).")
+    return .result(dialog: say(String(localized: "A próxima hora dourada é \(SkySnapshot.day(w.start)), das \(SkySnapshot.time(w.start)) às \(SkySnapshot.time(w.end)).")))
   }
 }
 
@@ -91,14 +116,16 @@ struct MoonPhaseIntent: AppIntent {
       return .result(dialog: staleDialog)
     }
     let index = Int((Date().timeIntervalSince1970 * 1000 - day0) / 86_400_000)
-    guard let phase = sky.metadata["moonPhase\(index)"] else {
+    // Older snapshots only carry the label, in whatever language the app was in.
+    guard let phase = SkySnapshot.phase(sky.metadata["moonPhaseKey\(index)"] ?? "") ?? sky.metadata["moonPhase\(index)"] else {
       return .result(dialog: staleDialog)
     }
-    let illumination = sky.metadata["moonIllumination\(index)"] ?? "?"
+    let illumination = "\(sky.metadata["moonIllumination\(index)"] ?? "?")%"
     if let full = sky.next("nextFull") {
-      return .result(dialog: "Hoje: \(phase), \(illumination)% iluminada. A próxima cheia é \(full.formatted(.dateTime.day().month(.wide).locale(Locale(identifier: "pt_BR")))).")
+      let date = full.formatted(.dateTime.day().month(.wide).locale(SkySnapshot.locale))
+      return .result(dialog: say(String(localized: "Hoje: \(phase), \(illumination) iluminada. A próxima cheia é \(date).")))
     }
-    return .result(dialog: "Hoje: \(phase), \(illumination)% iluminada.")
+    return .result(dialog: say(String(localized: "Hoje: \(phase), \(illumination) iluminada.")))
   }
 }
 

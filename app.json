@@ -13,7 +13,8 @@
       "supportsTablet": false,
       "infoPlist": {
         "UIViewControllerBasedStatusBarAppearance": true,
-        "CFBundleDevelopmentRegion": "pt-BR"
+        "CFBundleDevelopmentRegion": "pt-BR",
+        "CFBundleAllowMixedLocalizations": true
       },
       "appleTeamId": "77MXYLFJ7J"
     },
@@ -207,6 +208,29 @@
       ],
       "expo-app-intents",
       "expo-quick-actions",
+      [
+        "expo-localization",
+        {
+          "supportedLocales": [
+            "en",
+            "pt-BR",
+            "es",
+            "fr",
+            "de"
+          ]
+        }
+      ],
+      [
+        "./plugins/withAppShortcutsStrings",
+        {
+          "locales": {
+            "en": "./locales/siri/en.json",
+            "es": "./locales/siri/es.json",
+            "fr": "./locales/siri/fr.json",
+            "de": "./locales/siri/de.json"
+          }
+        }
+      ],
       "./plugins/withReleaseScheme"
     ],
     "experiments": {
@@ -218,6 +242,13 @@
         ]
       }
     },
-    "backgroundColor": "#05081A"
+    "backgroundColor": "#05081A",
+    "locales": {
+      "en": "./locales/en.json",
+      "pt-BR": "./locales/pt.json",
+      "es": "./locales/es.json",
+      "fr": "./locales/fr.json",
+      "de": "./locales/de.json"
+    }
   }
 }

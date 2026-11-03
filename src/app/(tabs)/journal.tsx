@@ -18,11 +18,11 @@ import { Text } from '@/components/Text';
 import { TopFade } from '@/components/TopFade';
 import { useLivePositions, useNow, usePlace, useSunToday } from '@/hooks/useAstro';
 import { useCheckInWindow } from '@/hooks/useCheckIn';
+import { useT } from '@/i18n';
 import { BADGES, levelFor } from '@/lib/achievements';
 import { badgeContext, useApp } from '@/store/app';
 import { colors, space } from '@/theme/tokens';
 
-const KIND_LABEL = { sunrise: 'Nascer do sol', sunset: 'Pôr do sol', moon: 'Lua' } as const;
 const KIND_ICON = { sunrise: 'sunrise', sunset: 'sunset', moon: 'moon' } as const;
 
 export default lazyTab(JournalScreen);
@@ -35,6 +35,7 @@ function JournalScreen() {
   const now = useNow();
   const tz = place.tz;
   const use24h = useApp((s) => s.use24h);
+  const tx = useT();
   const state = useApp(
     useShallow((s) => ({ checkIns: s.checkIns, xp: s.xp, badges: s.badges, arSessions: s.arSessions, places: s.places, hasOnboarded: s.hasOnboarded })),
   );
@@ -55,20 +56,20 @@ function JournalScreen() {
     <View style={styles.root}>
       <SkyBackground altitude={sky} />
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: insets.top + space.md, paddingBottom: bottom, paddingHorizontal: space.md, gap: space.sm }}>
-          <ScreenTitle title="Diário" subtitle="Seus momentos com o céu" />
+          <ScreenTitle title={tx.tabs.journal} subtitle={tx.journal.subtitle} />
 
           <Reveal index={0}>
-            <Card title="Sequência" icon="flame" iconColor={keys.has(todayKey) ? colors.accent : colors.textSecondary}>
+            <Card title={tx.journal.streak} icon="flame" iconColor={keys.has(todayKey) ? colors.accent : colors.textSecondary}>
               <View style={styles.streakRow}>
                 <View style={styles.streakNumber}>
                   <Text variant="hero">{ctx.streak}</Text>
                   <Text variant="title3" color={colors.textSecondary} style={{ marginBottom: 10 }}>
-                    {ctx.streak === 1 ? 'dia' : 'dias'}
+                    {tx.journal.days(ctx.streak)}
                   </Text>
                 </View>
                 <View style={{ alignItems: 'flex-end', gap: 2 }}>
                   <Text variant="footnote" color={colors.textSecondary}>
-                    Recorde
+                    {tx.journal.record}
                   </Text>
                   <Text variant="metricSmall">{ctx.bestStreak}</Text>
                 </View>
@@ -93,12 +94,12 @@ function JournalScreen() {
           </Reveal>
 
           <Reveal index={1}>
-            <Card title={`Nível ${level.level}`} icon="trophy" accessory={<Text variant="footnote" color={colors.textSecondary}>{state.xp} XP</Text>}>
+            <Card title={tx.journal.level(level.level)} icon="trophy" accessory={<Text variant="footnote" color={colors.textSecondary}>{state.xp} XP</Text>}>
               <View style={{ gap: space.sm }}>
                 <Text variant="title3">{level.title}</Text>
                 <ProgressBar value={level.progress} delay={200} />
                 <Text variant="footnote" color={colors.textTertiary}>
-                  Faltam {level.toNext} XP para o próximo nível
+                  {tx.journal.toNext(level.toNext)}
                 </Text>
               </View>
             </Card>
@@ -109,13 +110,13 @@ function JournalScreen() {
           </Reveal>
 
           <Reveal index={3}>
-            <Card title="Conquistas" icon="trophy" accessory={<Text variant="caption" color={colors.textTertiary}>{Object.keys(state.badges).length}/{BADGES.length}</Text>}>
+            <Card title={tx.journal.badges} icon="trophy" accessory={<Text variant="caption" color={colors.textTertiary}>{Object.keys(state.badges).length}/{BADGES.length}</Text>}>
               <View style={styles.badges}>
                 {BADGES.map((b) => {
                   const unlocked = !!state.badges[b.id];
                   const p = b.progress(ctx);
                   return (
-                    <View key={b.id} style={[styles.badge, { width: badgeSize }]} accessibilityLabel={`${b.title}. ${b.description}${unlocked ? '' : ` ${Math.round(p * 100)}% concluída.`}`}>
+                    <View key={b.id} style={[styles.badge, { width: badgeSize }]} accessibilityLabel={`${b.title}. ${b.description}${unlocked ? '' : ` ${tx.journal.percentDone(Math.round(p * 100))}`}`}>
                       <View style={[styles.medal, unlocked && styles.medalOn]}>
                         <ProgressRing size={60} progress={unlocked ? 1 : p} color={unlocked ? colors.accent : colors.textSecondary} />
                         <Icon name={b.icon} size={22} color={unlocked ? colors.accent : colors.textTertiary} weight="regular" />
@@ -134,13 +135,13 @@ function JournalScreen() {
           </Reveal>
 
           <Reveal index={4}>
-            <Card title="Registros" icon="journal">
+            <Card title={tx.journal.log} icon="journal">
               {history.length === 0 ? (
                 <View style={{ alignItems: 'center', gap: space.xs, paddingVertical: space.lg }}>
                   <Icon name="sunHorizon" size={30} color={colors.textSecondary} />
-                  <Text variant="headline">Seu diário está em branco</Text>
+                  <Text variant="headline">{tx.journal.emptyTitle}</Text>
                   <Text variant="footnote" color={colors.textSecondary} align="center">
-                    Perto do nascer ou do pôr do sol, ou com a lua no céu, toque em Registrar agora.
+                    {tx.journal.emptyBody}
                   </Text>
                 </View>
               ) : (
@@ -150,7 +151,7 @@ function JournalScreen() {
                     <View style={styles.histRow}>
                       <Icon name={KIND_ICON[c.kind]} size={16} color={c.kind === 'moon' ? colors.moon : colors.accent} />
                       <Text variant="callout" style={{ flex: 1 }}>
-                        {KIND_LABEL[c.kind]}
+                        {tx.checkIn.kind[c.kind]}
                       </Text>
                       <Text variant="footnote" color={colors.textSecondary}>
                         {capitalize(formatDate(new Date(c.at), tz, 'short'))} · {formatTime(new Date(c.at), tz, use24h)}

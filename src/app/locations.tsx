@@ -10,6 +10,7 @@ import { Divider } from '@/components/Card';
 import { Icon } from '@/components/Icon';
 import { PressableScale } from '@/components/Pressable';
 import { Text } from '@/components/Text';
+import { useT } from '@/i18n';
 import { searchCities } from '@/lib/cities';
 import { haptic } from '@/lib/haptics';
 import { geocodePlaces, refreshCurrentLocation } from '@/lib/location';
@@ -22,6 +23,7 @@ export default function LocationsScreen() {
   const places = useApp((s) => s.places);
   const selectedId = useApp((s) => s.selectedId);
   const use24h = useApp((s) => s.use24h);
+  const tx = useT();
   const { addPlace, removePlace, selectPlace } = useApp.getState();
   const [query, setQuery] = useState('');
   const [remote, setRemote] = useState<SavedPlace[]>([]);
@@ -31,7 +33,8 @@ export default function LocationsScreen() {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const local = searchCities(query).map<SavedPlace>((c) => ({
-    id: `city-${c.name}`,
+    // Keyed by the catalogue name, so a city saved in one language is the same in another.
+    id: `city-${c.key}`,
     name: c.name,
     region: c.region,
     latitude: c.latitude,
@@ -68,7 +71,7 @@ export default function LocationsScreen() {
     if (res === 'ok') choose('current');
     else {
       haptic.warning();
-      setLocError(res === 'denied' ? 'Permissão negada. Ative a localização nos ajustes do sistema.' : 'Não foi possível obter sua posição agora.');
+      setLocError(res === 'denied' ? tx.locations.denied : tx.locations.error);
     }
   };
 
@@ -78,12 +81,12 @@ export default function LocationsScreen() {
   return (
     <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag" style={{ backgroundColor: colors.inkSheet }} contentContainerStyle={{ padding: space.md, gap: space.md, paddingBottom: space.xxxl }}>
         <View style={styles.header}>
-          <Text variant="title2">Locais</Text>
+          <Text variant="title2">{tx.locations.title}</Text>
         </View>
         <View style={styles.searchWrap}>
           <Icon name="search" size={16} color={colors.textTertiary} />
           <TextInput
-            placeholder="Buscar cidade"
+            placeholder={tx.locations.search}
             placeholderTextColor={colors.textTertiary}
             defaultValue=""
             onChangeText={(q) => {
@@ -104,9 +107,9 @@ export default function LocationsScreen() {
           <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(120)} style={styles.group}>
             {results.length === 0 && !loading ? (
               <View style={{ padding: space.lg, alignItems: 'center', gap: space.xxs }}>
-                <Text variant="headline">Nenhum lugar encontrado</Text>
+                <Text variant="headline">{tx.locations.noResults}</Text>
                 <Text variant="footnote" color={colors.textSecondary} align="center">
-                  Tente o nome da cidade sem abreviações.
+                  {tx.locations.noResultsHint}
                 </Text>
               </View>
             ) : null}
@@ -142,9 +145,9 @@ export default function LocationsScreen() {
                   <Icon name="location" size={15} color={colors.accent} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text variant="body">{current ? current.name : 'Usar minha localização'}</Text>
+                  <Text variant="body">{current ? current.name : tx.locations.useMine}</Text>
                   <Text variant="footnote" color={colors.textSecondary}>
-                    {current ? 'Localização atual' : 'Horários exatos para onde você está'}
+                    {current ? tx.locations.current : tx.locations.useMineHint}
                   </Text>
                 </View>
                 {locating ? <ActivityIndicator color={colors.textSecondary} /> : selectedId === 'current' && current ? <Icon name="check" size={16} color={colors.accent} /> : null}
@@ -157,7 +160,7 @@ export default function LocationsScreen() {
                       <Icon name="arrowCounter" size={14} color={colors.textSecondary} />
                     </View>
                     <Text variant="callout" color={colors.textSecondary}>
-                      Atualizar posição
+                      {tx.locations.refresh}
                     </Text>
                   </PressableScale>
                 </>
@@ -169,14 +172,14 @@ export default function LocationsScreen() {
               </Text>
             ) : null}
 
-            <Text variant="headline">Salvos</Text>
+            <Text variant="headline">{tx.locations.saved}</Text>
             <View style={styles.group}>
               {places.length === 0 ? (
                 <View style={{ padding: space.lg, alignItems: 'center', gap: space.xxs }}>
                   <Icon name="globe" size={26} color={colors.textSecondary} />
-                  <Text variant="headline">Nenhum lugar salvo</Text>
+                  <Text variant="headline">{tx.locations.noneSaved}</Text>
                   <Text variant="footnote" color={colors.textSecondary} align="center">
-                    Busque uma cidade para planejar viagens e fotos em outros céus.
+                    {tx.locations.noneSavedHint}
                   </Text>
                 </View>
               ) : null}
@@ -189,7 +192,7 @@ export default function LocationsScreen() {
             </View>
             {!current && places.length === 0 ? (
               <Text variant="caption" color={colors.textTertiary}>
-                Enquanto isso, mostramos {DEFAULT_PLACE.name}.
+                {tx.locations.meanwhile(DEFAULT_PLACE.name)}
               </Text>
             ) : null}
           </>
@@ -200,16 +203,17 @@ export default function LocationsScreen() {
 
 function SavedRow({ place, selected, use24h, onPress, onRemove }: { place: SavedPlace; selected: boolean; use24h: boolean; onPress: () => void; onRemove: () => void }) {
   const day = computeSunDay(place, startOfDay(new Date(), place.tz));
+  const tx = useT();
   return (
     <PressableScale scaleTo={0.99} hapticOnPress={null} onPress={onPress} style={styles.row}>
       <View style={{ flex: 1 }}>
         <Text variant="body">{place.name}</Text>
         <Text variant="footnote" color={colors.textSecondary}>
-          Nascer {formatTime(day.sunrise, place.tz, use24h)} · Pôr {formatTime(day.sunset, place.tz, use24h)}
+          {tx.locations.riseSet(formatTime(day.sunrise, place.tz, use24h), formatTime(day.sunset, place.tz, use24h))}
         </Text>
       </View>
       {selected ? <Icon name="check" size={16} color={colors.accent} /> : null}
-      <PressableScale onPress={onRemove} hapticOnPress={null} style={styles.remove} accessibilityLabel={`Remover ${place.name}`}>
+      <PressableScale onPress={onRemove} hapticOnPress={null} style={styles.remove} accessibilityLabel={tx.locations.remove(place.name)}>
         <Icon name="trash" size={15} color={colors.textTertiary} />
       </PressableScale>
     </PressableScale>

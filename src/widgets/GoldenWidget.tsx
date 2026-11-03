@@ -23,17 +23,17 @@ export default function GoldenWidget(props: GoldenWidgetProps, env: WidgetEnviro
     <VStack alignment="leading" spacing={4}>
       <ProgressView timerInterval={{ lower: new Date(props.startAt), upper: new Date(props.endAt) }} countsDown={false} modifiers={[tint(amber)]} />
       <HStack spacing={3}>
-        <Text modifiers={[font({ size: 12, weight: 'medium' }), secondary]}>termina em</Text>
+        <Text modifiers={[font({ size: 12, weight: 'medium' }), secondary]}>{props.labels.endsIn}</Text>
         <Text date={new Date(props.endAt)} dateStyle="relative" modifiers={[font({ size: 12, weight: 'medium' }), secondary, lineLimit(1)]} />
       </HStack>
     </VStack>
   ) : props.startAt > now ? (
     <HStack spacing={3}>
-      <Text modifiers={[font({ size: 12, weight: 'medium' }), secondary]}>começa em</Text>
+      <Text modifiers={[font({ size: 12, weight: 'medium' }), secondary]}>{props.labels.startsIn}</Text>
       <Text date={new Date(props.startAt)} dateStyle="relative" modifiers={[font({ size: 12, weight: 'medium' }), secondary, lineLimit(1)]} />
     </HStack>
   ) : (
-    <Text modifiers={[font({ size: 12, weight: 'medium' }), secondary]}>{`Amanhã ${props.morningWindow}`}</Text>
+    <Text modifiers={[font({ size: 12, weight: 'medium' }), secondary]}>{`${props.labels.tomorrow} ${props.morningWindow}`}</Text>
   );
 
   const block = (label: string, value: string, color: string, symbol: string) => (
@@ -50,13 +50,13 @@ export default function GoldenWidget(props: GoldenWidgetProps, env: WidgetEnviro
     return (
       <VStack alignment="leading" spacing={10} modifiers={[background, widgetURL('solune://')]}>
         <HStack>
-          <Text modifiers={[font({ size: 15, weight: 'semibold' })]}>Horas mágicas</Text>
+          <Text modifiers={[font({ size: 15, weight: 'semibold' })]}>{props.labels.title}</Text>
           <Spacer />
           <Text modifiers={[font({ size: 12, weight: 'medium' }), tertiary, lineLimit(1)]}>{props.place}</Text>
         </HStack>
         <HStack spacing={18}>
-          {block('Dourada', props.window, amber, 'sun.horizon.fill')}
-          {block('Azul', props.blueWindow, blue, 'moon.haze.fill')}
+          {block(props.labels.golden, props.window, amber, 'sun.horizon.fill')}
+          {block(props.labels.blue, props.blueWindow, blue, 'moon.haze.fill')}
           <Spacer />
         </HStack>
         <Spacer />

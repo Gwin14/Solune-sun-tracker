@@ -4,6 +4,7 @@ import { formatTime } from '@/astro/format';
 import type { SunDay } from '@/astro/sun';
 import { dayKey, MIN_MS } from '@/astro/time';
 import type { CheckInKind } from '@/lib/achievements';
+import { useT } from '@/i18n';
 import { useApp } from '@/store/app';
 
 export type CheckInWindow = {
@@ -24,6 +25,7 @@ export function useCheckInWindow(args: {
   use24h: boolean;
 }): CheckInWindow {
   const checkIns = useApp((s) => s.checkIns);
+  const tx = useT().checkIn;
   const { now, tz, today, tomorrow, sunAlt, moonAlt, use24h } = args;
   return useMemo(() => {
     const t = now.getTime();
@@ -35,20 +37,20 @@ export function useCheckInWindow(args: {
     let prompt = '';
     if (near(today.sunset, 75, 40)) {
       kind = 'sunset';
-      prompt = 'Está vendo o pôr do sol?';
+      prompt = tx.promptSunset;
     } else if (near(today.sunrise, 40, 75)) {
       kind = 'sunrise';
-      prompt = 'Viu o sol nascer?';
+      prompt = tx.promptSunrise;
     } else if (moonAlt > 5 && sunAlt < -6) {
       kind = 'moon';
-      prompt = 'A lua está no céu. Foi olhar?';
+      prompt = tx.promptMoon;
     }
 
     let nextHint: string;
-    if (today.sunset && t < today.sunset.getTime() - 75 * MIN_MS) nextHint = `Próxima janela: pôr do sol às ${formatTime(today.sunset, tz, use24h)}`;
-    else if (tomorrow.sunrise) nextHint = `Próxima janela: nascer do sol às ${formatTime(tomorrow.sunrise, tz, use24h)}`;
-    else nextHint = 'Volte quando o céu mudar.';
+    if (today.sunset && t < today.sunset.getTime() - 75 * MIN_MS) nextHint = tx.nextSunset(formatTime(today.sunset, tz, use24h));
+    else if (tomorrow.sunrise) nextHint = tx.nextSunrise(formatTime(tomorrow.sunrise, tz, use24h));
+    else nextHint = tx.comeBack;
 
     return { kind, prompt, done: kind ? doneFor(kind) : false, nextHint };
-  }, [checkIns, now, tz, today, tomorrow, sunAlt, moonAlt, use24h]);
+  }, [checkIns, now, tz, today, tomorrow, sunAlt, moonAlt, use24h, tx]);
 }

@@ -1,12 +1,13 @@
 import { StyleSheet, View } from 'react-native';
 import Animated, { FadeInDown, FadeOutDown, LinearTransition } from 'react-native-reanimated';
 
-import { compassPoint, formatDegrees, formatTime } from '@/astro/format';
+import { compassPoint, formatDecimal, formatDegrees, formatTime } from '@/astro/format';
 import type { ViewingPlan } from '@/astro/sky/engine';
 import type { TargetInfo } from '@/astro/sky/targets';
 import { Icon } from '@/components/Icon';
 import { PressableScale } from '@/components/Pressable';
 import { Text } from '@/components/Text';
+import { useT } from '@/i18n';
 import { colors, radius, space } from '@/theme/tokens';
 
 type Props = {
@@ -26,15 +27,14 @@ type Props = {
   onBestTime?: (t: Date) => void;
 };
 
-const fmtMag = (m: number) => m.toFixed(1).replace('.', ',');
-
 export function TargetCard({ info, alt, az, plan, tz, use24h, locked, onClose, onDetails, favorite, onToggleFavorite, onBestTime }: Props) {
   const up = alt > 0;
+  const tx = useT();
   // Compact so the crosshair above stays clear; the full story is on the object's page.
   return (
     <Animated.View entering={FadeInDown.duration(260)} exiting={FadeOutDown.duration(180)} layout={LinearTransition.duration(220)} style={styles.card}>
       <View style={styles.header}>
-        <PressableScale onPress={onDetails} scaleTo={0.98} hapticOnPress="soft" style={styles.title} accessibilityRole="button" accessibilityHint="Abre a página completa">
+        <PressableScale onPress={onDetails} scaleTo={0.98} hapticOnPress="soft" style={styles.title} accessibilityRole="button" accessibilityHint={tx.target.openPage}>
           <View style={[styles.dot, { backgroundColor: info.color, boxShadow: `0 0 10px ${info.color}` }]} />
           <View style={{ flex: 1 }}>
             <Text variant="title3" numberOfLines={1}>
@@ -48,13 +48,13 @@ export function TargetCard({ info, alt, az, plan, tz, use24h, locked, onClose, o
         <PressableScale
           onPress={onToggleFavorite}
           hapticOnPress="light"
-          accessibilityLabel={favorite ? 'Remover dos favoritos' : 'Favoritar'}
+          accessibilityLabel={favorite ? tx.target.unfavorite : tx.target.favorite}
           accessibilityRole="button"
           accessibilityState={{ selected: favorite }}
           style={styles.close}>
           <Icon name={favorite ? 'star' : 'starOutline'} size={14} color={favorite ? colors.accent : colors.text} />
         </PressableScale>
-        <PressableScale onPress={onClose} hapticOnPress="soft" accessibilityLabel="Fechar" accessibilityRole="button" style={styles.close}>
+        <PressableScale onPress={onClose} hapticOnPress="soft" accessibilityLabel={tx.common.close} accessibilityRole="button" style={styles.close}>
           <Icon name="close" size={13} color={colors.text} />
         </PressableScale>
       </View>
@@ -63,18 +63,18 @@ export function TargetCard({ info, alt, az, plan, tz, use24h, locked, onClose, o
         <View style={[styles.chip, locked && { backgroundColor: colors.accentSoft, borderColor: colors.accent }]}>
           <Icon name={locked ? 'check' : up ? 'arrowUp' : 'sunHorizon'} size={12} color={locked || up ? colors.accent : colors.textSecondary} />
           <Text variant="caption" style={{ fontVariant: ['tabular-nums'] }}>
-            {locked ? 'Na mira' : up ? `${formatDegrees(alt)} · ${compassPoint(az)}` : 'Abaixo do horizonte'}
+            {locked ? tx.target.locked : up ? `${formatDegrees(alt)} · ${compassPoint(az)}` : tx.target.belowHorizon}
           </Text>
         </View>
         {info.mag != null ? (
           <View style={styles.chip}>
             <Icon name="sparkle" size={12} color={colors.textSecondary} />
-            <Text variant="caption">Brilho {fmtMag(info.mag)}</Text>
+            <Text variant="caption">{tx.target.brightness(formatDecimal(info.mag))}</Text>
           </View>
         ) : null}
         <PressableScale onPress={onDetails} hapticOnPress="soft" style={[styles.chip, styles.more]} accessibilityRole="button">
           <Text variant="caption" color={colors.text}>
-            Detalhes
+            {tx.target.details}
           </Text>
           <Icon name="chevronRight" size={10} color={colors.text} />
         </PressableScale>
@@ -84,22 +84,22 @@ export function TargetCard({ info, alt, az, plan, tz, use24h, locked, onClose, o
         <View style={styles.times}>
           {plan.alwaysUp ? (
             <Text variant="footnote" color={colors.textSecondary}>
-              Nunca se põe daqui: gira o dia todo acima do horizonte.
+              {tx.target.alwaysUp}
             </Text>
           ) : plan.neverUp ? (
             <Text variant="footnote" color={colors.textSecondary}>
-              Não nasce nas próximas 24 horas vista daqui.
+              {tx.target.neverUp}
             </Text>
           ) : (
             <>
-              <TimeCell label="Nasce" value={formatTime(plan.rise, tz, use24h)} />
-              <TimeCell label="Se põe" value={formatTime(plan.set, tz, use24h)} />
+              <TimeCell label={tx.target.rises} value={formatTime(plan.rise, tz, use24h)} />
+              <TimeCell label={tx.target.sets} value={formatTime(plan.set, tz, use24h)} />
             </>
           )}
           {plan.best && onBestTime ? (
-            <PressableScale onPress={() => onBestTime(plan.best!.time)} hapticOnPress="light" style={styles.best} accessibilityRole="button" accessibilityLabel="Ir para o melhor horário">
+            <PressableScale onPress={() => onBestTime(plan.best!.time)} hapticOnPress="light" style={styles.best} accessibilityRole="button" accessibilityLabel={tx.target.goBest}>
               <Text variant="caption" color={colors.textOnAccent}>
-                {plan.best.dark ? 'Melhor à noite' : 'Melhor no crepúsculo'}
+                {plan.best.dark ? tx.target.bestNight : tx.target.bestTwilight}
               </Text>
               <Text variant="headline" color={colors.textOnAccent} style={{ fontVariant: ['tabular-nums'] }}>
                 {formatTime(plan.best.time, tz, use24h)} · {formatDegrees(plan.best.alt)}

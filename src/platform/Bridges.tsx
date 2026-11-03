@@ -5,6 +5,7 @@ import { router, type Href } from 'expo-router';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 
+import { useT } from '@/i18n';
 import { selectPlace, useApp } from '@/store/app';
 import { skyCatalogEntity } from '@/widgets/data';
 import { reconcileSkyMoments, refreshWidgetsIfStale, scheduleWidgetSync, startSkyMoment, type SkyMomentKind } from '@/widgets/sync';
@@ -41,14 +42,15 @@ function WidgetSync() {
 
 /** Home Screen long-press menu. "Acompanhar" starts the Live Activity without navigating. */
 function QuickActionsBridge({ live }: { live: boolean }) {
+  const tx = useT().quickActions;
   useEffect(() => {
     QuickActions.setItems([
-      { id: 'sky', title: 'Céu agora', subtitle: 'Sol e lua pela câmera', icon: 'symbol:camera.viewfinder', params: { href: '/sky' } },
-      { id: 'moon', title: 'Lua de hoje', icon: 'symbol:moonphase.waxing.gibbous', params: { href: '/moon' } },
-      { id: 'journal', title: 'Registrar o céu', icon: 'symbol:book.closed', params: { href: '/journal' } },
-      ...(live ? [{ id: 'track', title: 'Acompanhar hora dourada', subtitle: 'Na Tela Bloqueada', icon: 'symbol:sun.horizon', params: { href: '/' } }] : []),
+      { id: 'sky', title: tx.sky, subtitle: tx.skySubtitle, icon: 'symbol:camera.viewfinder', params: { href: '/sky' } },
+      { id: 'moon', title: tx.moon, icon: 'symbol:moonphase.waxing.gibbous', params: { href: '/moon' } },
+      { id: 'journal', title: tx.journal, icon: 'symbol:book.closed', params: { href: '/journal' } },
+      ...(live ? [{ id: 'track', title: tx.track, subtitle: tx.trackSubtitle, icon: 'symbol:sun.horizon', params: { href: '/' } }] : []),
     ]).catch(() => {});
-  }, [live]);
+  }, [live, tx]);
   useQuickActionRouting((action) => {
     if (action.id === 'track') startSkyMoment('golden');
   });

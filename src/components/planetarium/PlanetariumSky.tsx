@@ -6,6 +6,7 @@ import type { HorizonFrame } from '@/astro/sky/engine';
 import { ASTERISMS } from '@/astro/sky/names';
 import type { TargetId } from '@/astro/sky/targets';
 import type { VecProjector } from '@/lib/arMath';
+import { localeTag, strings } from '@/i18n';
 import { colors, weight } from '@/theme/tokens';
 
 export type SkyLayers = {
@@ -354,7 +355,7 @@ export const PlanetariumSky = memo(function PlanetariumSky({ frame, trails, trai
         if (layers.labels && labels.fits(pt.x - 60, pt.y + 12, 120, 14)) {
           texts.push(
             <SvgText fontFamily={FONT} key="gct" x={pt.x} y={pt.y + 24} fontSize={11} fontWeight={weight.semibold} fill={colors.accent} textAnchor="middle">
-              Centro da Galáxia
+              {strings().sky.galacticLabel}
             </SvgText>,
           );
         }
@@ -374,7 +375,7 @@ export const PlanetariumSky = memo(function PlanetariumSky({ frame, trails, trai
         </G>,
       );
       if (layers.labels) {
-        const name = frame.latitude < 0 ? 'Polo Sul Celeste' : 'Polo Norte Celeste';
+        const name = frame.latitude < 0 ? strings().sky.southPole : strings().sky.northPole;
         texts.push(
           <SvgText fontFamily={FONT} key="polet" x={pt.x} y={pt.y + 44} fontSize={11} fontWeight={weight.semibold} fill={colors.accent} textAnchor="middle">
             {name}
@@ -394,7 +395,7 @@ export const PlanetariumSky = memo(function PlanetariumSky({ frame, trails, trai
       if (cull && u < 0.02) return;
       project(frame.labels[i * 3], frame.labels[i * 3 + 1], u, pt);
       if (!Number.isFinite(pt.x) || !onScreen(pt, -10)) return;
-      const label = c.name.toLocaleUpperCase('pt-BR');
+      const label = c.name.toLocaleUpperCase(localeTag());
       const size = hi ? 13 : 10.5;
       const w = textWidth(label, size, 1.6);
       if (pt.x - w / 2 < 4 || pt.x + w / 2 > width - 4) return;

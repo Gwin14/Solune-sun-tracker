@@ -1,0 +1,11 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "Solune",
+    "NSCameraUsageDescription": "O Solune usa a câmera para desenhar o trajeto do sol e da lua sobre o céu. Nada é gravado.",
+    "NSMotionUsageDescription": "O Solune usa os sensores de movimento para saber para onde você aponta o celular no modo AR.",
+    "NSLocationWhenInUseUsageDescription": "Sua localização torna os horários do sol e da lua precisos ao minuto."
+  },
+  "android": {
+    "app_name": "Solune"
+  }
+}

@@ -21,6 +21,7 @@ export type SunWidgetProps = {
   /** Hourly solar altitude for the local day (25 points, clamped at −12°). */
   curve: number[];
   bg: string[];
+  labels: { in: string; rise: string; set: string; day: string; noon: string; golden: string; blue: string; dayLength: string; sinceYesterday: string; sunNow: string };
 };
 
 export type MoonWidgetProps = {
@@ -36,6 +37,7 @@ export type MoonWidgetProps = {
   nextNew: string;
   nextNewIn: string;
   bg: string[];
+  labels: { lit: string; rises: string; sets: string; full: string; new: string };
 };
 
 export type GoldenWidgetProps = {
@@ -51,12 +53,13 @@ export type GoldenWidgetProps = {
   blueEndAt: number;
   morningWindow: string;
   bg: string[];
+  labels: { title: string; golden: string; blue: string; endsIn: string; startsIn: string; tomorrow: string };
 };
 
 export type LockWidgetProps = {
   sun: { label: string; time: string; at: number; progress: number; symbol: string; place: string };
   moon: { phase: string; symbol: string; illumination: number; next: string };
-  golden: { label: string; window: string; at: number };
+  golden: { label: string; short: string; window: string; at: number };
 };
 
 export type StreakWidgetProps = {
@@ -70,6 +73,7 @@ export type StreakWidgetProps = {
   level: string;
   progress: number;
   bg: string[];
+  labels: { title: string; days: string };
 };
 
 export type EventWidgetProps = {
@@ -81,6 +85,7 @@ export type EventWidgetProps = {
   visible: boolean;
   following: { title: string; date: string }[];
   bg: string[];
+  labels: { later: string };
 };
 
 export type SkyMomentProps = {
@@ -93,6 +98,7 @@ export type SkyMomentProps = {
   startTime: string;
   endTime: string;
   caption: string;
+  labels: { ended: string; remaining: string; untilStart: string };
 };
 
 /** One planetarium object as a widget row. */
@@ -119,9 +125,11 @@ export type TonightWidgetProps = {
   /** Planets worth looking for tonight, in the order they are best seen. */
   rows: SkyObjectRow[];
   bg: string[];
+  labels: { title: string; empty: string };
 };
 
 export type FavoritesWidgetProps = {
   rows: SkyObjectRow[];
   bg: string[];
+  labels: { title: string; emptyTitle: string; emptyBody: string };
 };

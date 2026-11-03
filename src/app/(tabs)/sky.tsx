@@ -33,6 +33,7 @@ import { TAB_BAR_HEIGHT } from '@/components/TabSpace';
 import { Text } from '@/components/Text';
 import { usePlace } from '@/hooks/useAstro';
 import { angleDiff, edgeIndicator, makeUnprojector, makeVecProjector, polylines, poseFromRotation, smoothAngle, wrap360, type Pose, type Projector } from '@/lib/arMath';
+import { strings, useT } from '@/i18n';
 import { haptic } from '@/lib/haptics';
 import { DEFAULT_PLANETARIUM, useApp, type PlanetariumPrefs } from '@/store/app';
 import { useSkyIntent } from '@/store/skyIntent';
@@ -43,9 +44,8 @@ type Layers = { sun: boolean; moon: boolean; solstices: boolean; grid: boolean }
 type Cursor = { dayShift: number; minute: number };
 
 const CAMERA_VFOV = 62;
-const CARDINALS: [string, number][] = [
-  ['N', 0], ['NE', 45], ['L', 90], ['SE', 135], ['S', 180], ['SO', 225], ['O', 270], ['NO', 315],
-];
+/** Every other point of the 16-wind rose, in the active language. */
+const cardinalPoints = (): [string, number][] => strings().compass.points.filter((_, i) => i % 2 === 0).map((l, i) => [l, i * 45]);
 /** Time-lapse speeds in sky minutes per real second. */
 const SPEEDS = [
   { label: '1 min/s', rate: 1 },
@@ -71,6 +71,7 @@ function SkyScreen() {
   const setPrefs = useApp((s) => s.setPlanetarium);
   const favorites = useApp((s) => s.favorites);
   const toggleFavorite = useApp((s) => s.toggleFavorite);
+  const tx = useT();
   const P: PlanetariumPrefs = useMemo(() => ({ ...DEFAULT_PLANETARIUM, ...storedPrefs }), [storedPrefs]);
   const tz = place.tz;
   const [cameraPerm, requestCamera] = useCameraPermissions();
@@ -483,7 +484,7 @@ function SkyScreen() {
     setSelectedId(null);
     setShowLayers(false);
     if (on) {
-      setHint(mode === 'camera' ? 'Aponte para o céu e toque numa estrela para saber o que é.' : 'Arraste o céu, faça pinça e toque numa estrela para saber o que é.');
+      setHint(mode === 'camera' ? tx.sky.hintCamera : tx.sky.hintVirtual);
       if (mode === 'virtual' && poseRef.current.alt < 20) glideTo(poseRef.current.az, 35);
     } else setPlaying(false);
   };
@@ -574,7 +575,7 @@ function SkyScreen() {
   const cameraBlocked = mode === 'camera' && showFeed && !cameraPerm?.granted;
   const planetsUp = frame ? frame.planets.filter((p) => p.alt > 0 && p.mag < 6.5).length : 0;
   const timeLabel = formatMinuteOfDay(minute, use24h);
-  const dayLabel = dayShift === 0 ? null : dayShift === 1 ? 'amanhã' : dayShift === -1 ? 'ontem' : formatDate(dayStart, tz, 'compact');
+  const dayLabel = dayShift === 0 ? null : dayShift === 1 ? tx.relative.tomorrow : dayShift === -1 ? tx.relative.yesterday : formatDate(dayStart, tz, 'compact');
 
   const findRows: FindRow[] = useMemo(() => {
     if (!finding || !frame) return [];
@@ -670,7 +671,7 @@ function SkyScreen() {
       {/* Top HUD */}
       <View style={[styles.hudTop, { paddingTop: insets.top + space.xs }]} pointerEvents="box-none">
         <View style={styles.hudRow} pointerEvents="box-none">
-          <HudButton icon="stars" label={planetarium ? 'Sair do planetário' : 'Planetário'} onPress={togglePlanetarium} active={planetarium} />
+          <HudButton icon="stars" label={planetarium ? tx.sky.exitPlanetarium : tx.sky.planetarium} onPress={togglePlanetarium} active={planetarium} />
           <View style={styles.modeSwitch}>
             {(['camera', 'virtual'] as Mode[]).map((m) => (
               <PressableScale
@@ -681,12 +682,12 @@ function SkyScreen() {
                 accessibilityRole="button"
                 accessibilityState={{ selected: mode === m }}>
                 <Text variant="subhead" color={mode === m ? colors.onPrimary : colors.text} style={{ fontWeight: '600' }}>
-                  {m === 'camera' ? (showFeed ? 'Câmera' : 'Apontar') : 'Céu virtual'}
+                  {m === 'camera' ? (showFeed ? tx.sky.camera : tx.sky.point) : tx.sky.virtual}
                 </Text>
               </PressableScale>
             ))}
           </View>
-          <HudButton icon="layers" label="Camadas" onPress={() => setShowLayers((v) => !v)} active={showLayers} />
+          <HudButton icon="layers" label={tx.sky.layers} onPress={() => setShowLayers((v) => !v)} active={showLayers} />
         </View>
         <Heading view={view} constellation={crosshairName ?? null} />
         {showLayers ? (
@@ -694,39 +695,39 @@ function SkyScreen() {
             {planetarium ? (
               <>
                 <Text variant="footnote" color={colors.textSecondary} style={styles.layersHead}>
-                  No céu
+                  {tx.sky.inTheSky}
                 </Text>
                 <View style={styles.layers}>
-                  <LayerToggle icon="constellation" label="Constelações" on={P.lines} onPress={() => setPrefs({ lines: !P.lines })} />
-                  <LayerToggle icon="text" label="Nomes" on={P.labels} onPress={() => setPrefs({ labels: !P.labels })} />
-                  <LayerToggle icon="galaxy" label="Via Láctea" on={P.milkyWay} onPress={() => setPrefs({ milkyWay: !P.milkyWay })} />
-                  <LayerToggle icon="orbit" label="Planetas" on={P.planets} onPress={() => setPrefs({ planets: !P.planets })} />
-                  <LayerToggle icon="telescope" label="Céu profundo" on={P.deepSky} onPress={() => setPrefs({ deepSky: !P.deepSky })} />
-                  <LayerToggle icon="trails" label="Rastros" on={P.trails} onPress={() => {
-                    if (!P.trails) setHint(`Simulando 2 h de exposição: as estrelas giram em volta do ${place.latitude < 0 ? 'polo sul' : 'polo norte'} celeste. Dê play para ver o céu girar.`);
+                  <LayerToggle icon="constellation" label={tx.sky.constellations} on={P.lines} onPress={() => setPrefs({ lines: !P.lines })} />
+                  <LayerToggle icon="text" label={tx.sky.names} on={P.labels} onPress={() => setPrefs({ labels: !P.labels })} />
+                  <LayerToggle icon="galaxy" label={tx.sky.milkyWay} on={P.milkyWay} onPress={() => setPrefs({ milkyWay: !P.milkyWay })} />
+                  <LayerToggle icon="orbit" label={tx.sky.planets} on={P.planets} onPress={() => setPrefs({ planets: !P.planets })} />
+                  <LayerToggle icon="telescope" label={tx.sky.deepSky} on={P.deepSky} onPress={() => setPrefs({ deepSky: !P.deepSky })} />
+                  <LayerToggle icon="trails" label={tx.sky.trails} on={P.trails} onPress={() => {
+                    if (!P.trails) setHint(tx.sky.trailsHint(place.latitude < 0));
                     setPrefs({ trails: !P.trails });
                   }} />
-                  <LayerToggle icon="ecliptic" label="Eclíptica" on={P.ecliptic} onPress={() => setPrefs({ ecliptic: !P.ecliptic })} />
-                  <LayerToggle icon="sun" label="Sol" on={layers.sun} onPress={() => setLayers((l) => ({ ...l, sun: !l.sun }))} />
-                  <LayerToggle icon="moon" label="Lua" on={layers.moon} onPress={() => setLayers((l) => ({ ...l, moon: !l.moon }))} />
+                  <LayerToggle icon="ecliptic" label={tx.sky.ecliptic} on={P.ecliptic} onPress={() => setPrefs({ ecliptic: !P.ecliptic })} />
+                  <LayerToggle icon="sun" label={tx.sky.sun} on={layers.sun} onPress={() => setLayers((l) => ({ ...l, sun: !l.sun }))} />
+                  <LayerToggle icon="moon" label={tx.sky.moon} on={layers.moon} onPress={() => setLayers((l) => ({ ...l, moon: !l.moon }))} />
                 </View>
                 <Text variant="footnote" color={colors.textSecondary} style={styles.layersHead}>
-                  Visual
+                  {tx.sky.visual}
                 </Text>
                 <View style={styles.layers}>
-                  <LayerToggle icon="mountain" label="Chão translúcido" on={P.ground} onPress={() => setPrefs({ ground: !P.ground })} />
-                  <LayerToggle icon="atmosphere" label="Atmosfera" on={P.atmosphere} onPress={() => setPrefs({ atmosphere: !P.atmosphere })} />
-                  {mode === 'camera' ? <LayerToggle icon="camera" label="Câmera ao fundo" on={P.cameraFeed} onPress={() => setPrefs({ cameraFeed: !P.cameraFeed })} /> : null}
-                  <LayerToggle icon="nightVision" label="Visão noturna" on={P.nightVision} onPress={() => setPrefs({ nightVision: !P.nightVision })} />
-                  <LayerToggle icon="compass" label="Grade" on={layers.grid} onPress={() => setLayers((l) => ({ ...l, grid: !l.grid }))} />
+                  <LayerToggle icon="mountain" label={tx.sky.ground} on={P.ground} onPress={() => setPrefs({ ground: !P.ground })} />
+                  <LayerToggle icon="atmosphere" label={tx.sky.atmosphere} on={P.atmosphere} onPress={() => setPrefs({ atmosphere: !P.atmosphere })} />
+                  {mode === 'camera' ? <LayerToggle icon="camera" label={tx.sky.cameraFeed} on={P.cameraFeed} onPress={() => setPrefs({ cameraFeed: !P.cameraFeed })} /> : null}
+                  <LayerToggle icon="nightVision" label={tx.sky.nightVision} on={P.nightVision} onPress={() => setPrefs({ nightVision: !P.nightVision })} />
+                  <LayerToggle icon="compass" label={tx.sky.grid} on={layers.grid} onPress={() => setLayers((l) => ({ ...l, grid: !l.grid }))} />
                 </View>
               </>
             ) : (
               <View style={styles.layers}>
-                <LayerToggle icon="sun" label="Sol" on={layers.sun} onPress={() => setLayers((l) => ({ ...l, sun: !l.sun }))} />
-                <LayerToggle icon="moon" label="Lua" on={layers.moon} onPress={() => setLayers((l) => ({ ...l, moon: !l.moon }))} />
-                <LayerToggle icon="calendar" label="Solstícios" on={layers.solstices} onPress={() => setLayers((l) => ({ ...l, solstices: !l.solstices }))} />
-                <LayerToggle icon="compass" label="Grade" on={layers.grid} onPress={() => setLayers((l) => ({ ...l, grid: !l.grid }))} />
+                <LayerToggle icon="sun" label={tx.sky.sun} on={layers.sun} onPress={() => setLayers((l) => ({ ...l, sun: !l.sun }))} />
+                <LayerToggle icon="moon" label={tx.sky.moon} on={layers.moon} onPress={() => setLayers((l) => ({ ...l, moon: !l.moon }))} />
+                <LayerToggle icon="calendar" label={tx.sky.solstices} on={layers.solstices} onPress={() => setLayers((l) => ({ ...l, solstices: !l.solstices }))} />
+                <LayerToggle icon="compass" label={tx.sky.grid} on={layers.grid} onPress={() => setLayers((l) => ({ ...l, grid: !l.grid }))} />
               </View>
             )}
           </Animated.View>
@@ -734,21 +735,21 @@ function SkyScreen() {
         {layers.solstices && !planetarium ? (
           <View style={styles.legend}>
             <View style={[styles.legendLine, { backgroundColor: '#FF8A6B' }]} />
-            <Text variant="caption">Junho</Text>
+            <Text variant="caption">{tx.sky.june}</Text>
             <View style={[styles.legendLine, { backgroundColor: '#8FB4FF' }]} />
-            <Text variant="caption">Dezembro</Text>
+            <Text variant="caption">{tx.sky.december}</Text>
           </View>
         ) : null}
         {mode === 'camera' && lowAccuracy ? (
           <View style={styles.notice}>
             <Icon name="compass" size={14} color={colors.accent} />
-            <Text variant="footnote">Mova o celular desenhando um 8 para calibrar a bússola.</Text>
+            <Text variant="footnote">{tx.sky.figure8}</Text>
           </View>
         ) : null}
         {calibrating ? (
           <View style={styles.notice}>
             <Icon name="hand" size={14} color={colors.accent} />
-            <Text variant="footnote">Toque onde o sol está na tela. Nunca olhe diretamente para ele.</Text>
+            <Text variant="footnote">{tx.sky.tapSun}</Text>
           </View>
         ) : null}
         {hint && !showLayers ? (
@@ -786,8 +787,8 @@ function SkyScreen() {
         ) : planetarium && frame ? (
           <View style={styles.infoRow}>
             <InfoChip icon={selected.sun.alt > -6 ? 'sunHorizon' : 'stars'} label={LIGHT_PHASE_LABEL[lightPhase(selected.sun.alt)]} />
-            <PressableScale onPress={() => setFinding(true)} hapticOnPress="soft" accessibilityRole="button" accessibilityLabel="Planetas visíveis">
-              <InfoChip icon="orbit" label={planetsUp === 1 ? '1 planeta visível' : `${planetsUp} planetas visíveis`} highlight={planetsUp > 0} />
+            <PressableScale onPress={() => setFinding(true)} hapticOnPress="soft" accessibilityRole="button" accessibilityLabel={tx.sky.visiblePlanetsA11y}>
+              <InfoChip icon="orbit" label={tx.sky.visiblePlanets(planetsUp)} highlight={planetsUp > 0} />
             </PressableScale>
           </View>
         ) : (
@@ -811,7 +812,7 @@ function SkyScreen() {
             planetarium ? (
               <>
                 {playing ? (
-                  <PressableScale onPress={() => setSpeed((s) => (s + 1) % SPEEDS.length)} hapticOnPress="tick" style={styles.speed} accessibilityRole="button" accessibilityLabel="Velocidade">
+                  <PressableScale onPress={() => setSpeed((s) => (s + 1) % SPEEDS.length)} hapticOnPress="tick" style={styles.speed} accessibilityRole="button" accessibilityLabel={tx.sky.speed}>
                     <Text variant="footnote" style={{ fontVariant: ['tabular-nums'], fontWeight: '600' }}>
                       {SPEEDS[speed].label}
                     </Text>
@@ -824,7 +825,7 @@ function SkyScreen() {
                   }}
                   hapticOnPress="soft"
                   accessibilityRole="button"
-                  accessibilityLabel={playing ? 'Pausar' : 'Acelerar o tempo'}
+                  accessibilityLabel={playing ? tx.sky.pause : tx.sky.play}
                   style={[styles.roundAction, playing && { backgroundColor: colors.primary }]}>
                   <Icon name={playing ? 'pause' : 'play'} size={14} color={playing ? colors.onPrimary : colors.text} />
                 </PressableScale>
@@ -834,11 +835,11 @@ function SkyScreen() {
                     hapticOnPress="soft"
                     style={[styles.roundAction, calibrating && { backgroundColor: colors.primary }]}
                     accessibilityRole="button"
-                    accessibilityLabel="Calibrar com o sol">
+                    accessibilityLabel={tx.sky.calibrate}>
                     <Icon name="viewfinder" size={15} color={calibrating ? colors.onPrimary : colors.text} />
                   </PressableScale>
                 ) : null}
-                <PressableScale onPress={() => setFinding(true)} hapticOnPress="soft" style={styles.roundAction} accessibilityRole="button" accessibilityLabel="Encontrar no céu">
+                <PressableScale onPress={() => setFinding(true)} hapticOnPress="soft" style={styles.roundAction} accessibilityRole="button" accessibilityLabel={tx.find.title}>
                   <Icon name="search" size={15} color={colors.text} />
                 </PressableScale>
               </>
@@ -850,11 +851,11 @@ function SkyScreen() {
             {mode === 'camera' ? (
               <PressableScale onPress={() => setCalibrating((c) => !c)} hapticOnPress="soft" style={styles.smallAction}>
                 <Icon name="viewfinder" size={14} color={colors.text} />
-                <Text variant="subhead">{calibrating ? 'Cancelar' : 'Calibrar com o sol'}</Text>
+                <Text variant="subhead">{calibrating ? tx.common.cancel : tx.sky.calibrate}</Text>
               </PressableScale>
             ) : (
               <Text variant="footnote" color={colors.textSecondary}>
-                Arraste para olhar em volta · pinça para zoom
+                {tx.sky.dragHint}
               </Text>
             )}
           </View>
@@ -865,19 +866,19 @@ function SkyScreen() {
         <View style={[StyleSheet.absoluteFill, styles.blocker]}>
           <Icon name="camera" size={44} color={colors.accent} />
           <Text variant="title2" align="center">
-            Veja o céu pela câmera
+            {tx.sky.cameraTitle}
           </Text>
           <Text variant="body" color={colors.textSecondary} align="center">
-            O Solune usa a câmera só para desenhar o trajeto do sol e da lua sobre a imagem. Nada é gravado.
+            {tx.sky.cameraBody}
           </Text>
-          <Button label="Permitir câmera" onPress={enableCamera} style={{ alignSelf: 'stretch' }} />
-          <Button label="Usar céu virtual" variant="quiet" onPress={() => setMode('virtual')} />
+          <Button label={tx.sky.allowCamera} onPress={enableCamera} style={{ alignSelf: 'stretch' }} />
+          <Button label={tx.sky.useVirtual} variant="quiet" onPress={() => setMode('virtual')} />
         </View>
       ) : null}
       {sensorsOk === false && mode === 'virtual' && showSensorNote && !hint ? (
         <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(400)} style={[styles.sensorNote, { top: insets.top + 150 }]} pointerEvents="none">
           <Text variant="caption" color={colors.textSecondary} align="center">
-            Sensores de movimento indisponíveis neste aparelho. Mostrando o céu virtual.
+            {tx.sky.noSensors}
           </Text>
         </Animated.View>
       ) : null}
@@ -932,6 +933,7 @@ const Heading = memo(function Heading({ view, constellation }: { view: ViewStore
   const az = Number(azS);
   const alt = Number(altS);
   const heading = `${az}° ${compassPoint(az)}`;
+  const tx = useT();
   return (
     <View style={styles.headingPill}>
       {constellation ? (
@@ -947,7 +949,7 @@ const Heading = memo(function Heading({ view, constellation }: { view: ViewStore
       )}
       <Text variant="caption" color={colors.textSecondary} style={{ fontVariant: ['tabular-nums'] }}>
         {constellation ? `${heading} · ` : ''}
-        {alt >= 0 ? `↑ ${formatDegrees(alt)}` : `${formatDegrees(-alt)} abaixo do horizonte`}
+        {alt >= 0 ? `↑ ${formatDegrees(alt)}` : tx.sky.belowHorizon(formatDegrees(-alt))}
       </Text>
     </View>
   );
@@ -1073,7 +1075,7 @@ const SkyStage = memo(function SkyStage({
         if (!Number.isFinite(s.x) || s.x < -40 || s.x > width + 40 || s.y < -40 || s.y > height + 40) return null;
         return { h, x: s.x, y: s.y };
       }).filter(Boolean) as { h: number; x: number; y: number }[];
-    const cardinals = CARDINALS.map(([l, az]) => {
+    const cardinals = cardinalPoints().map(([l, az]) => {
       const s = project(az, 0);
       return Number.isFinite(s.x) ? { l, x: s.x, y: s.y } : null;
     }).filter(Boolean) as { l: string; x: number; y: number }[];
@@ -1312,6 +1314,7 @@ function TimeScrubber({
   accessory?: ReactNode;
 }) {
   const [width, setWidth] = useState(0);
+  const tx = useT();
   const lastHour = useRef(Math.floor(minute / 60));
   const update = (x: number) => {
     const m = Math.max(0, Math.min(1439, (x / Math.max(1, width)) * 1440));
@@ -1350,7 +1353,7 @@ function TimeScrubber({
             <View style={styles.liveTag}>
               <View style={styles.liveDot} />
               <Text variant="footnote" color={colors.textSecondary}>
-                Ao vivo
+                {tx.sky.live}
               </Text>
             </View>
           ) : null}
@@ -1359,7 +1362,7 @@ function TimeScrubber({
           {off ? (
             <PressableScale onPress={onNow} hapticOnPress="soft" style={styles.nowPill} accessibilityRole="button">
               <Text variant="label" color={colors.onPrimary}>
-                Agora
+                {tx.common.now}
               </Text>
             </PressableScale>
           ) : null}
@@ -1367,7 +1370,7 @@ function TimeScrubber({
         </View>
       </View>
       <GestureDetector gesture={pan}>
-        <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={styles.track} accessibilityLabel="Horário" accessibilityRole="adjustable">
+        <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={styles.track} accessibilityLabel={tx.sky.time} accessibilityRole="adjustable">
           {sunrise != null && sunset != null && width ? (
             <View style={[styles.daySpan, { left: (sunrise / 1440) * width, width: ((sunset - sunrise) / 1440) * width }]} />
           ) : null}

@@ -22,8 +22,8 @@ export default function FavoritesWidget(props: FavoritesWidgetProps, env: Widget
     return (
       <VStack spacing={6} modifiers={[background, widgetURL('solune://sky')]}>
         <Image systemName="star" size={24} color={tinted ? undefined : amber} />
-        <Text modifiers={[font({ size: 13, weight: 'semibold' }), multilineTextAlignment('center')]}>Sem favoritos</Text>
-        <Text modifiers={[font({ size: 11 }), secondary, multilineTextAlignment('center'), lineLimit(3)]}>Toque na estrela de um objeto no planetário.</Text>
+        <Text modifiers={[font({ size: 13, weight: 'semibold' }), multilineTextAlignment('center')]}>{props.labels.emptyTitle}</Text>
+        <Text modifiers={[font({ size: 11 }), secondary, multilineTextAlignment('center'), lineLimit(3)]}>{props.labels.emptyBody}</Text>
       </VStack>
     );
   }
@@ -34,7 +34,7 @@ export default function FavoritesWidget(props: FavoritesWidgetProps, env: Widget
       <VStack alignment="leading" spacing={3} modifiers={[background, widgetURL(r.url)]}>
         <HStack spacing={5}>
           <Image systemName="star.fill" size={11} color={tinted ? undefined : amber} />
-          <Text modifiers={[font({ size: 12, weight: 'semibold' }), secondary]}>Favoritos</Text>
+          <Text modifiers={[font({ size: 12, weight: 'semibold' }), secondary]}>{props.labels.title}</Text>
         </HStack>
         <Spacer />
         <Image systemName={r.symbol as never} size={18} color={tinted ? undefined : r.color} />
@@ -50,7 +50,7 @@ export default function FavoritesWidget(props: FavoritesWidgetProps, env: Widget
     <VStack alignment="leading" spacing={family === 'systemLarge' ? 10 : 6} modifiers={[background, widgetURL('solune://sky')]}>
       <HStack spacing={5}>
         <Image systemName="star.fill" size={11} color={tinted ? undefined : amber} />
-        <Text modifiers={[font({ size: 12, weight: 'semibold' }), secondary]}>Favoritos</Text>
+        <Text modifiers={[font({ size: 12, weight: 'semibold' }), secondary]}>{props.labels.title}</Text>
       </HStack>
       {rows.map((r, i) => (
         <Link key={r.id} destination={r.url}>

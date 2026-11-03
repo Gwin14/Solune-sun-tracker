@@ -19,6 +19,7 @@ export function eqVector(raDeg: number, decDeg: number, out: Float64Array, i: nu
 
 export type NamedStar = StarInfo & { index: number; hip: number };
 
+
 export type ConstellationEntry = {
   id: string;
   name: string;
@@ -68,7 +69,8 @@ export function catalog(): Catalog {
   const named: NamedStar[] = [];
   for (const [h, info] of Object.entries(STAR_INFO)) {
     const index = byHip.get(Number(h));
-    if (index != null) named.push({ ...info, index, hip: Number(h) });
+    // Copy the descriptors, not the values: names and notes follow the active language.
+    if (index != null) named.push(Object.defineProperties({ index, hip: Number(h) }, Object.getOwnPropertyDescriptors(info)) as NamedStar);
   }
   // IAU names for the remaining bright stars, so a tap rarely lands on a bare designation.
   for (const [h, name] of Object.entries(PROPER_NAMES)) {
@@ -87,7 +89,16 @@ export function catalog(): Catalog {
       for (let i = 0; i < pl.length; i += 2) eqVector(pl[i], pl[i + 1], v, (i / 2) * 3);
       return v;
     });
-    return { id, latin, rank, label, lines, name: CONSTELLATION_NAMES[id] ?? latin };
+    return {
+      id,
+      latin,
+      rank,
+      label,
+      lines,
+      get name() {
+        return CONSTELLATION_NAMES[id] ?? latin;
+      },
+    };
   });
 
   const mwCount = MILKY_WAY.length / 3;
@@ -104,7 +115,9 @@ export function catalog(): Catalog {
   };
   const asterismLines = ASTERISMS.map((a) => ({
     id: a.id,
-    name: a.name,
+    get name() {
+      return a.name;
+    },
     segments: a.lines
       .map(([p, q]) => {
         const va = starVec(p);

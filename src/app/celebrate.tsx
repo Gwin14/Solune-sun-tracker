@@ -9,6 +9,7 @@ import { ProgressRing } from '@/components/charts';
 import { Icon } from '@/components/Icon';
 import { Text } from '@/components/Text';
 import { BADGES, XP } from '@/lib/achievements';
+import { useT } from '@/i18n';
 import { haptic } from '@/lib/haptics';
 import { useApp } from '@/store/app';
 import { EASE_OUT, SNAP } from '@/theme/motion';
@@ -20,6 +21,7 @@ export default function CelebrateScreen() {
   const id = useApp((s) => s.celebrationQueue[0]);
   const badge = BADGES.find((b) => b.id === id);
   const reduce = useReducedMotion();
+  const tx = useT();
   const card = useSharedValue(0);
   const ring = useSharedValue(0);
 
@@ -47,7 +49,7 @@ export default function CelebrateScreen() {
       <Animated.View entering={FadeIn.duration(220)} style={StyleSheet.absoluteFill}>
         <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
         <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.scrim }]} />
-        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel="Fechar" />
+        <Pressable style={StyleSheet.absoluteFill} onPress={close} accessibilityLabel={tx.common.close} />
       </Animated.View>
       <Animated.View style={[styles.card, cardStyle]}>
         <View style={styles.medal}>
@@ -57,7 +59,7 @@ export default function CelebrateScreen() {
           </Animated.View>
         </View>
         <Text variant="footnote" color={colors.textSecondary} align="center">
-          Conquista desbloqueada
+          {tx.celebrate.unlocked}
         </Text>
         <Text variant="title1" align="center">
           {badge.title}
@@ -68,7 +70,7 @@ export default function CelebrateScreen() {
         <Text variant="label" color={colors.accent} align="center" style={{ marginTop: space.xs }}>
           +{XP.badge} XP
         </Text>
-        <Button label="Continuar" onPress={close} style={{ alignSelf: 'stretch', marginTop: space.lg }} />
+        <Button label={tx.common.continue} onPress={close} style={{ alignSelf: 'stretch', marginTop: space.lg }} />
       </Animated.View>
     </View>
   );

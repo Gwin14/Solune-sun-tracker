@@ -31,7 +31,7 @@ export default function SunWidget(props: SunWidgetProps, env: WidgetEnvironment)
 
   const countdown = props.nextAt ? (
     <HStack spacing={3}>
-      <Text modifiers={[font({ size: 12, weight: 'medium' }), secondary]}>em</Text>
+      <Text modifiers={[font({ size: 12, weight: 'medium' }), secondary]}>{props.labels.in}</Text>
       <Text date={new Date(props.nextAt)} dateStyle="relative" modifiers={[font({ size: 12, weight: 'medium' }), secondary, lineLimit(1)]} />
     </HStack>
   ) : (
@@ -81,11 +81,11 @@ export default function SunWidget(props: SunWidgetProps, env: WidgetEnvironment)
         <VStack alignment="leading" spacing={6}>
           {curve(78)}
           <HStack>
-            {stat('Nascer', props.rise)}
+            {stat(props.labels.rise, props.rise)}
             <Spacer />
-            {stat('Pôr', props.set)}
+            {stat(props.labels.set, props.set)}
             <Spacer />
-            {stat('Dia', props.dayLength)}
+            {stat(props.labels.day, props.dayLength)}
           </HStack>
         </VStack>
       </HStack>
@@ -106,23 +106,23 @@ export default function SunWidget(props: SunWidgetProps, env: WidgetEnvironment)
         </HStack>
         {curve(120)}
         <HStack>
-          {stat('Nascer', props.rise)}
+          {stat(props.labels.rise, props.rise)}
           <Spacer />
-          {stat('Meio-dia', props.noon)}
+          {stat(props.labels.noon, props.noon)}
           <Spacer />
-          {stat('Pôr', props.set)}
+          {stat(props.labels.set, props.set)}
         </HStack>
         <HStack>
-          {stat('Hora dourada', props.goldenEvening)}
+          {stat(props.labels.golden, props.goldenEvening)}
           <Spacer />
-          {stat('Hora azul', props.blueEvening)}
+          {stat(props.labels.blue, props.blueEvening)}
         </HStack>
         <HStack>
-          {stat('Duração do dia', props.dayLength)}
+          {stat(props.labels.dayLength, props.dayLength)}
           <Spacer />
-          {stat('Desde ontem', props.dayDelta)}
+          {stat(props.labels.sinceYesterday, props.dayDelta)}
           <Spacer />
-          {stat('Sol agora', `${props.altitude}°`)}
+          {stat(props.labels.sunNow, `${props.altitude}°`)}
         </HStack>
       </VStack>
     );

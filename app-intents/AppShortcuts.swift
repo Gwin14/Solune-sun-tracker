@@ -1,7 +1,7 @@
 import AppIntents
 
-/// Siri phrases and the Shortcuts app tiles. Phrases are Portuguese; the app's development
-/// region is pt-BR, so they need no translation table.
+/// Siri phrases and the Shortcuts app tiles. Written in Portuguese (the development region);
+/// other languages come from AppShortcuts.strings and Localizable.strings (locales/ folder).
 struct AppShortcuts: AppShortcutsProvider {
   static var appShortcuts: [AppShortcut] {
     AppShortcut(

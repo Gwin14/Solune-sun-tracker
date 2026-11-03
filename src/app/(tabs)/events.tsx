@@ -19,17 +19,12 @@ import { useTabBarSpace } from '@/components/TabSpace';
 import { Text } from '@/components/Text';
 import { TopFade } from '@/components/TopFade';
 import { useEvents, useNow, usePlace } from '@/hooks/useAstro';
+import { useT } from '@/i18n';
 import { useApp } from '@/store/app';
 import { colors, radius, space } from '@/theme/tokens';
 
 type Filter = 'all' | 'eclipse' | 'moon' | 'season' | 'meteor';
-const FILTERS: { key: Filter; label: string }[] = [
-  { key: 'all', label: 'Todos' },
-  { key: 'eclipse', label: 'Eclipses' },
-  { key: 'moon', label: 'Luas cheias' },
-  { key: 'season', label: 'Estações' },
-  { key: 'meteor', label: 'Meteoros' },
-];
+const FILTERS: Filter[] = ['all', 'eclipse', 'moon', 'season', 'meteor'];
 
 const KIND_META: Record<SkyEventKind, { icon: IconName; color: string; filter: Filter }> = {
   season: { icon: 'leaf', color: '#7FD6A4', filter: 'season' },
@@ -50,6 +45,7 @@ function EventsScreen() {
   const tz = place.tz;
   const events = useEvents(place, now);
   const [filter, setFilter] = useState<Filter>('all');
+  const tx = useT();
   const night = useSharedValue(-16);
 
   const todayKey = dayKey(now, tz);
@@ -69,7 +65,7 @@ function EventsScreen() {
       <SkyBackground altitude={night} />
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: insets.top + space.md, paddingBottom: bottom, gap: space.sm }}>
           <View style={{ paddingHorizontal: space.md }}>
-            <ScreenTitle title="Eventos" subtitle="Planeje o seu céu" />
+            <ScreenTitle title={tx.tabs.events} subtitle={tx.events.subtitle} />
           </View>
 
           <Reveal index={0}>
@@ -78,17 +74,17 @@ function EventsScreen() {
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
             {FILTERS.map((f) => {
-              const active = f.key === filter;
+              const active = f === filter;
               return (
                 <PressableScale
-                  key={f.key}
-                  onPress={() => setFilter(f.key)}
+                  key={f}
+                  onPress={() => setFilter(f)}
                   hapticOnPress="tick"
                   accessibilityRole="button"
                   accessibilityState={{ selected: active }}
                   style={[styles.filter, active && styles.filterActive]}>
                   <Text variant="subhead" color={active ? colors.onPrimary : colors.text} style={{ fontWeight: '500' }}>
-                    {f.label}
+                    {tx.events.filters[f]}
                   </Text>
                 </PressableScale>
               );
@@ -100,9 +96,9 @@ function EventsScreen() {
               <Card>
                 <View style={{ alignItems: 'center', gap: space.xs, paddingVertical: space.lg }}>
                   <Icon name="telescope" size={28} color={colors.textSecondary} />
-                  <Text variant="headline">Nada por aqui no próximo ano</Text>
+                  <Text variant="headline">{tx.events.emptyTitle}</Text>
                   <Text variant="footnote" color={colors.textSecondary} align="center">
-                    Experimente outro filtro para ver mais eventos.
+                    {tx.events.emptyBody}
                   </Text>
                 </View>
               </Card>
@@ -129,6 +125,7 @@ function EventsScreen() {
 
 function EventRow({ e, todayKey, tz }: { e: SkyEvent; todayKey: string; tz?: string }) {
   const use24h = useApp((s) => s.use24h);
+  const tx = useT();
   const meta = KIND_META[e.kind];
   const days = daysBetweenKeys(todayKey, dayKey(e.date, tz));
   const w = wallClock(e.date, tz);
@@ -168,7 +165,7 @@ function EventRow({ e, todayKey, tz }: { e: SkyEvent; todayKey: string; tz?: str
             <View style={[styles.tag, { backgroundColor: colors.accentSoft }]}>
               <Icon name="eye" size={11} color={colors.accent} />
               <Text variant="caption" color={colors.accent}>
-                Visível daqui
+                {tx.events.visibleHere}
               </Text>
             </View>
           ) : null}
@@ -183,6 +180,7 @@ function DayPlanner() {
   const place = usePlace();
   const now = useNow(60_000);
   const use24h = useApp((s) => s.use24h);
+  const tx = useT();
   const tz = place.tz;
   const start = useMemo(() => startOfDay(now, tz), [now, tz]);
   const days = useMemo(() => Array.from({ length: 60 }, (_, i) => addDays(start, i, tz)), [start, tz]);
@@ -211,7 +209,7 @@ function DayPlanner() {
           return (
             <PressableScale onPress={() => setIndex(i)} hapticOnPress="tick" style={[styles.day, active && styles.dayActive]} accessibilityLabel={formatDate(item, tz, 'weekday')}>
               <Text variant="caption" color={active ? colors.onPrimary : colors.textSecondary}>
-                {i === 0 ? 'hoje' : WEEKDAYS_SHORT[w.weekday]}
+                {i === 0 ? tx.relative.today : WEEKDAYS_SHORT[w.weekday]}
               </Text>
               <Text variant="headline" color={active ? colors.onPrimary : colors.text}>
                 {w.day}
@@ -223,14 +221,14 @@ function DayPlanner() {
       <View style={{ paddingHorizontal: space.md }}>
         <Card title={capitalize(formatDate(selected, tz, 'weekday'))} icon="calendar">
           <View style={styles.planRow}>
-            <Metric label="Nascer" icon="sunrise" value={t(info.sun.sunrise)} />
-            <Metric label="Pôr" icon="sunset" value={t(info.sun.sunset)} />
-            <Metric label="Duração" icon="hourglass" value={formatDuration(info.sun.dayLengthMin, { compact: true })} />
+            <Metric label={tx.sun.rise} icon="sunrise" value={t(info.sun.sunrise)} />
+            <Metric label={tx.sun.set} icon="sunset" value={t(info.sun.sunset)} />
+            <Metric label={tx.events.duration} icon="hourglass" value={formatDuration(info.sun.dayLengthMin, { compact: true })} />
           </View>
           <Divider style={{ marginVertical: space.sm }} />
           <View style={styles.planRow}>
-            <Metric label="Dourada" value={info.sun.goldenEvening.start ? `${t(info.sun.goldenEvening.start)}` : '—'} sub="à tarde" color={colors.golden} />
-            <Metric label="Azul" value={info.sun.blueEvening.start ? `${t(info.sun.blueEvening.start)}` : '—'} sub="à tarde" color="#9DB2FF" />
+            <Metric label={tx.sun.goldenShort} value={info.sun.goldenEvening.start ? `${t(info.sun.goldenEvening.start)}` : '—'} sub={tx.events.inTheEvening} color={colors.golden} />
+            <Metric label={tx.sun.blueShort} value={info.sun.blueEvening.start ? `${t(info.sun.blueEvening.start)}` : '—'} sub={tx.events.inTheEvening} color="#9DB2FF" />
             <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.xs }}>
               <MoonGlyph size={30} angle={info.ms.angle} southern={place.latitude < 0} glow={false} />
               <View style={{ flex: 1 }}>

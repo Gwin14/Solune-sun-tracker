@@ -1,4 +1,5 @@
 import type { IconName } from '@/components/Icon';
+import { strings, type Strings } from '@/i18n';
 
 export type CheckInKind = 'sunrise' | 'sunset' | 'moon';
 export type CheckIn = { key: string; kind: CheckInKind; at: number; moonIllum?: number };
@@ -12,44 +13,55 @@ export type BadgeContext = {
   onboarded: boolean;
 };
 
+export type BadgeId = keyof Strings['badges'];
+
 export type Badge = {
-  id: string;
-  title: string;
-  description: string;
+  id: BadgeId;
+  /** Read from the active language. */
+  readonly title: string;
+  readonly description: string;
   icon: IconName;
   progress: (c: BadgeContext) => number; // 0..1
 };
+
+function badge(id: BadgeId, icon: IconName, progress: Badge['progress']): Badge {
+  return {
+    id,
+    icon,
+    progress,
+    get title() {
+      return strings().badges[id].title;
+    },
+    get description() {
+      return strings().badges[id].description;
+    },
+  };
+}
 
 const count = (c: BadgeContext, kind?: CheckInKind) => c.checkIns.filter((x) => !kind || x.kind === kind).length;
 const ratio = (n: number, goal: number) => Math.min(1, n / goal);
 
 export const BADGES: Badge[] = [
-  { id: 'dawn', title: 'Primeira luz', description: 'Começou a seguir o céu.', icon: 'sunrise', progress: (c) => (c.onboarded ? 1 : 0) },
-  { id: 'first-check', title: 'Testemunha', description: 'Registrou seu primeiro momento no céu.', icon: 'eye', progress: (c) => ratio(count(c), 1) },
-  { id: 'early-bird', title: 'Madrugador', description: 'Viu 3 nasceres do sol.', icon: 'sunrise', progress: (c) => ratio(count(c, 'sunrise'), 3) },
-  { id: 'golden-hunter', title: 'Caçador dourado', description: 'Viu 5 pores do sol.', icon: 'sunset', progress: (c) => ratio(count(c, 'sunset'), 5) },
-  { id: 'night-owl', title: 'Coruja', description: 'Observou a lua 5 vezes.', icon: 'moon', progress: (c) => ratio(count(c, 'moon'), 5) },
-  {
-    id: 'full-moon',
-    title: 'Lua plena',
-    description: 'Observou uma lua cheia.',
-    icon: 'moonFull',
-    progress: (c) => (c.checkIns.some((x) => x.kind === 'moon' && (x.moonIllum ?? 0) > 0.94) ? 1 : 0),
-  },
-  { id: 'streak-3', title: 'Ritmo solar', description: 'Sequência de 3 dias.', icon: 'flame', progress: (c) => ratio(c.bestStreak, 3) },
-  { id: 'streak-7', title: 'Semana de luz', description: 'Sequência de 7 dias.', icon: 'flame', progress: (c) => ratio(c.bestStreak, 7) },
-  { id: 'streak-30', title: 'Órbita completa', description: 'Sequência de 30 dias.', icon: 'orbit', progress: (c) => ratio(c.bestStreak, 30) },
-  { id: 'ar-explorer', title: 'Olhar para cima', description: 'Usou o céu em realidade aumentada.', icon: 'viewfinder', progress: (c) => ratio(c.arSessions, 1) },
-  { id: 'traveler', title: 'Viajante', description: 'Salvou 3 lugares.', icon: 'globe', progress: (c) => ratio(c.placesCount, 3) },
+  badge('dawn', 'sunrise', (c) => (c.onboarded ? 1 : 0)),
+  badge('first-check', 'eye', (c) => ratio(count(c), 1)),
+  badge('early-bird', 'sunrise', (c) => ratio(count(c, 'sunrise'), 3)),
+  badge('golden-hunter', 'sunset', (c) => ratio(count(c, 'sunset'), 5)),
+  badge('night-owl', 'moon', (c) => ratio(count(c, 'moon'), 5)),
+  badge('full-moon', 'moonFull', (c) => (c.checkIns.some((x) => x.kind === 'moon' && (x.moonIllum ?? 0) > 0.94) ? 1 : 0)),
+  badge('streak-3', 'flame', (c) => ratio(c.bestStreak, 3)),
+  badge('streak-7', 'flame', (c) => ratio(c.bestStreak, 7)),
+  badge('streak-30', 'orbit', (c) => ratio(c.bestStreak, 30)),
+  badge('ar-explorer', 'viewfinder', (c) => ratio(c.arSessions, 1)),
+  badge('traveler', 'globe', (c) => ratio(c.placesCount, 3)),
 ];
 
 export const XP = { checkIn: 20, badge: 50, ar: 10 } as const;
 
-const LEVELS = ['Observador', 'Caçador de luz', 'Guardião do crepúsculo', 'Navegante celeste', 'Astrônomo', 'Mestre do céu'];
 export const XP_PER_LEVEL = 120;
 
 export function levelFor(xp: number) {
   const level = Math.floor(xp / XP_PER_LEVEL);
+  const LEVELS = strings().levels;
   return {
     level: level + 1,
     title: LEVELS[Math.min(level, LEVELS.length - 1)],

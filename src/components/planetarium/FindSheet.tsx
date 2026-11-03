@@ -8,6 +8,7 @@ import type { SearchEntry, TargetId } from '@/astro/sky/targets';
 import { Icon, type IconName } from '@/components/Icon';
 import { PressableScale } from '@/components/Pressable';
 import { Text } from '@/components/Text';
+import { language, useT } from '@/i18n';
 import { haptic } from '@/lib/haptics';
 import { EASE_OUT } from '@/theme/motion';
 import { colors, radius, space } from '@/theme/tokens';
@@ -21,26 +22,27 @@ type Props = {
   onClose: () => void;
 };
 
-type Group = SearchEntry['group'] | 'Favoritos';
+type Group = SearchEntry['group'] | 'favorites';
 
 const GROUP_ICON: Record<Group, IconName> = {
-  Favoritos: 'star',
-  Destaques: 'sparkle',
-  Planetas: 'orbit',
-  Estrelas: 'star',
-  'Céu profundo': 'telescope',
-  Constelações: 'constellation',
+  favorites: 'star',
+  highlights: 'sparkle',
+  planets: 'orbit',
+  stars: 'star',
+  deepSky: 'telescope',
+  constellations: 'constellation',
 };
-const ORDER: Group[] = ['Favoritos', 'Destaques', 'Planetas', 'Estrelas', 'Céu profundo', 'Constelações'];
+const ORDER: Group[] = ['favorites', 'highlights', 'planets', 'stars', 'deepSky', 'constellations'];
 
 const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-/** Names never change, so each entry is folded once for the life of the app. */
+/** Names only change with the language, so each entry is folded once per language. */
 const folded = new Map<string, string>();
 const searchKey = (r: FindRow) => {
-  let k = folded.get(r.id);
+  const id = `${language()}:${r.id}`;
+  let k = folded.get(id);
   if (k == null) {
     k = `${fold(r.name)}\n${fold(r.hint)}`;
-    folded.set(r.id, k);
+    folded.set(id, k);
   }
   return k;
 };
@@ -51,6 +53,7 @@ export const FindSheet = memo(function FindSheet({ rows, favorites, onPick, onCl
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const [onlyVisible, setOnlyVisible] = useState(false);
+  const tx = useT();
   // Typing stays responsive: the list catches up with the query in a lower-priority render.
   const deferredQuery = useDeferredValue(query);
 
@@ -61,9 +64,9 @@ export const FindSheet = memo(function FindSheet({ rows, favorites, onPick, onCl
     const out: Section[] = [];
     for (const g of ORDER) {
       // Favourites also stay in their own group, so searching finds them where expected.
-      let data = g === 'Favoritos' ? favorites.map((id) => byId.get(id as TargetId)).filter((r): r is FindRow => !!r) : filtered.filter((r) => r.group === g);
+      let data = g === 'favorites' ? favorites.map((id) => byId.get(id as TargetId)).filter((r): r is FindRow => !!r) : filtered.filter((r) => r.group === g);
       // Planets: what is up right now comes first.
-      if (g === 'Planetas') data = [...data].sort((a, b) => (b.alt ?? -90) - (a.alt ?? -90));
+      if (g === 'planets') data = [...data].sort((a, b) => (b.alt ?? -90) - (a.alt ?? -90));
       if (data.length) out.push({ key: g, g, data });
     }
     return out;
@@ -74,8 +77,8 @@ export const FindSheet = memo(function FindSheet({ rows, favorites, onPick, onCl
     <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(160)} style={[StyleSheet.absoluteFill, styles.scrim]}>
       <Animated.View entering={SlideInDown.duration(320).easing(EASE_OUT)} exiting={SlideOutDown.duration(220)} style={[styles.sheet, { paddingTop: insets.top + space.sm, paddingBottom: insets.bottom }]}>
         <View style={styles.header}>
-          <Text variant="title2">Encontrar no céu</Text>
-          <PressableScale onPress={onClose} hapticOnPress="soft" accessibilityLabel="Fechar" accessibilityRole="button" style={styles.close}>
+          <Text variant="title2">{tx.find.title}</Text>
+          <PressableScale onPress={onClose} hapticOnPress="soft" accessibilityLabel={tx.common.close} accessibilityRole="button" style={styles.close}>
             <Icon name="close" size={14} color={colors.text} />
           </PressableScale>
         </View>
@@ -85,7 +88,7 @@ export const FindSheet = memo(function FindSheet({ rows, favorites, onPick, onCl
             <TextInput
               value={query}
               onChangeText={setQuery}
-              placeholder="Estrela, planeta, constelação…"
+              placeholder={tx.find.placeholder}
               placeholderTextColor={colors.textTertiary}
               style={styles.input}
               autoCorrect={false}
@@ -102,7 +105,7 @@ export const FindSheet = memo(function FindSheet({ rows, favorites, onPick, onCl
             style={[styles.filter, onlyVisible && { backgroundColor: colors.primary }]}>
             <Icon name="eye" size={13} color={onlyVisible ? colors.onPrimary : colors.text} />
             <Text variant="subhead" color={onlyVisible ? colors.onPrimary : colors.text}>
-              Visíveis
+              {tx.find.visible}
             </Text>
           </PressableScale>
         </View>
@@ -112,7 +115,7 @@ export const FindSheet = memo(function FindSheet({ rows, favorites, onPick, onCl
           keyExtractor={(r) => r.id}
           renderSectionHeader={({ section }) => <GroupHead g={section.g} />}
           renderItem={({ item, index, section }) => (
-            <Row row={item} first={index === 0} last={index === section.data.length - 1} star={section.g !== 'Favoritos' && starred.has(item.id)} onPick={onPick} />
+            <Row row={item} first={index === 0} last={index === section.data.length - 1} star={section.g !== 'favorites' && starred.has(item.id)} onPick={onPick} />
           )}
           stickySectionHeadersEnabled={false}
           initialNumToRender={14}
@@ -124,7 +127,7 @@ export const FindSheet = memo(function FindSheet({ rows, favorites, onPick, onCl
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={
             <Text variant="body" color={colors.textSecondary} align="center" style={{ marginTop: space.xxl }}>
-              Nada com esse nome no céu de hoje.
+              {tx.find.empty}
             </Text>
           }
         />
@@ -134,17 +137,19 @@ export const FindSheet = memo(function FindSheet({ rows, favorites, onPick, onCl
 });
 
 const GroupHead = memo(function GroupHead({ g }: { g: Group }) {
+  const tx = useT();
   return (
     <View style={styles.groupHead}>
       <Icon name={GROUP_ICON[g]} size={13} color={colors.textSecondary} />
       <Text variant="footnote" color={colors.textSecondary}>
-        {g}
+        {tx.find.groups[g]}
       </Text>
     </View>
   );
 });
 
 const Row = memo(function Row({ row: r, first, last, star, onPick }: { row: FindRow; first: boolean; last: boolean; star: boolean; onPick: (id: TargetId) => void }) {
+  const tx = useT();
   return (
     <Pressable
       onPress={() => {
@@ -172,7 +177,7 @@ const Row = memo(function Row({ row: r, first, last, star, onPick }: { row: Find
           </Text>
         ) : (
           <Text variant="footnote" color={colors.textTertiary}>
-            abaixo
+            {tx.find.below}
           </Text>
         )
       ) : null}

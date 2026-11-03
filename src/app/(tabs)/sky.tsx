@@ -69,6 +69,8 @@ function SkyScreen() {
   const use24h = useApp((s) => s.use24h);
   const storedPrefs = useApp((s) => s.planetarium);
   const setPrefs = useApp((s) => s.setPlanetarium);
+  const favorites = useApp((s) => s.favorites);
+  const toggleFavorite = useApp((s) => s.toggleFavorite);
   const P: PlanetariumPrefs = { ...DEFAULT_PLANETARIUM, ...storedPrefs };
   const tz = place.tz;
   const [cameraPerm, requestCamera] = useCameraPermissions();
@@ -927,6 +929,8 @@ function SkyScreen() {
             locked={target.locked}
             onClose={() => setSelectedId(null)}
             onDetails={() => router.push({ pathname: '/object/[id]', params: { id: selectedId } })}
+            favorite={favorites.includes(selectedId)}
+            onToggleFavorite={() => toggleFavorite(selectedId)}
             onBestTime={(t) => {
               haptic.medium();
               pendingGlide.current = true;
@@ -1035,6 +1039,7 @@ function SkyScreen() {
       {finding && frame ? (
         <FindSheet
           rows={findRows}
+          favorites={favorites}
           onClose={() => setFinding(false)}
           onPick={(id) => {
             setFinding(false);

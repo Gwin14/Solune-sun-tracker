@@ -169,6 +169,32 @@
                 ]
               },
               "android": null
+            },
+            {
+              "name": "TonightWidget",
+              "displayName": "Céu esta noite",
+              "description": "As horas de céu escuro, a Lua e os planetas para ver hoje.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "systemLarge"
+                ]
+              },
+              "android": null
+            },
+            {
+              "name": "FavoritesWidget",
+              "displayName": "Favoritos do céu",
+              "description": "Onde estão agora as estrelas e planetas que você favoritou.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "systemLarge"
+                ]
+              },
+              "android": null
             }
           ]
         }

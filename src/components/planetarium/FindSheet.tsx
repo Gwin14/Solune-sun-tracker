@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -8,17 +8,23 @@ import type { SearchEntry, TargetId } from '@/astro/sky/targets';
 import { Icon, type IconName } from '@/components/Icon';
 import { PressableScale } from '@/components/Pressable';
 import { Text } from '@/components/Text';
+import { haptic } from '@/lib/haptics';
+import { EASE_OUT } from '@/theme/motion';
 import { colors, radius, space } from '@/theme/tokens';
 
 export type FindRow = SearchEntry & { alt: number | null; az: number | null; color?: string };
 
 type Props = {
   rows: FindRow[];
+  favorites: string[];
   onPick: (id: TargetId) => void;
   onClose: () => void;
 };
 
-const GROUP_ICON: Record<SearchEntry['group'], IconName> = {
+type Group = SearchEntry['group'] | 'Favoritos';
+
+const GROUP_ICON: Record<Group, IconName> = {
+  Favoritos: 'star',
   Destaques: 'sparkle',
   Planetas: 'orbit',
   Estrelas: 'star',
@@ -28,7 +34,7 @@ const GROUP_ICON: Record<SearchEntry['group'], IconName> = {
 
 const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-export function FindSheet({ rows, onPick, onClose }: Props) {
+export function FindSheet({ rows, favorites, onPick, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const [onlyVisible, setOnlyVisible] = useState(false);
@@ -36,20 +42,24 @@ export function FindSheet({ rows, onPick, onClose }: Props) {
   const groups = useMemo(() => {
     const q = fold(query.trim());
     const filtered = rows.filter((r) => (!q || fold(r.name).includes(q) || fold(r.hint).includes(q)) && (!onlyVisible || (r.alt ?? -1) > 0));
-    const order: SearchEntry['group'][] = ['Destaques', 'Planetas', 'Estrelas', 'Céu profundo', 'Constelações'];
+    const order: Group[] = ['Favoritos', 'Destaques', 'Planetas', 'Estrelas', 'Céu profundo', 'Constelações'];
+    const starred = new Set(favorites);
+    // Favourites also stay in their own group, so searching finds them where expected.
+    const favs = favorites.map((id) => filtered.find((r) => r.id === id)).filter((r): r is FindRow => !!r);
     return order
       .map((g) => {
-        let items = filtered.filter((r) => r.group === g);
+        let items = g === 'Favoritos' ? favs : filtered.filter((r) => r.group === g);
         // Planets: what is up right now comes first.
         if (g === 'Planetas') items = [...items].sort((a, b) => (b.alt ?? -90) - (a.alt ?? -90));
         return { g, items };
       })
-      .filter((x) => x.items.length);
-  }, [rows, query, onlyVisible]);
+      .filter((x) => x.items.length)
+      .map((x) => ({ ...x, starred }));
+  }, [rows, query, onlyVisible, favorites]);
 
   return (
     <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(160)} style={[StyleSheet.absoluteFill, styles.scrim]}>
-      <Animated.View entering={SlideInDown.springify().damping(22).stiffness(220)} exiting={SlideOutDown.duration(200)} style={[styles.sheet, { paddingTop: insets.top + space.sm, paddingBottom: insets.bottom }]}>
+      <Animated.View entering={SlideInDown.duration(320).easing(EASE_OUT)} exiting={SlideOutDown.duration(220)} style={[styles.sheet, { paddingTop: insets.top + space.sm, paddingBottom: insets.bottom }]}>
         <View style={styles.header}>
           <Text variant="title2">Encontrar no céu</Text>
           <PressableScale onPress={onClose} hapticOnPress="soft" accessibilityLabel="Fechar" accessibilityRole="button" style={styles.close}>
@@ -84,22 +94,32 @@ export function FindSheet({ rows, onPick, onClose }: Props) {
           </PressableScale>
         </View>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: space.xxxl * 2 }} showsVerticalScrollIndicator={false}>
-          {groups.map(({ g, items }) => (
+          {groups.map(({ g, items, starred }) => (
             <View key={g} style={{ marginTop: space.md }}>
               <View style={styles.groupHead}>
                 <Icon name={GROUP_ICON[g]} size={13} color={colors.textSecondary} />
-                <Text variant="footnote" color={colors.textSecondary} style={{ textTransform: 'uppercase', letterSpacing: 0.6 }}>
+                <Text variant="footnote" color={colors.textSecondary}>
                   {g}
                 </Text>
               </View>
               <View style={styles.group}>
                 {items.map((r, i) => (
-                  <PressableScale key={r.id} scaleTo={0.98} hapticOnPress="tick" onPress={() => onPick(r.id)} style={[styles.row, i > 0 && styles.rowBorder]} accessibilityRole="button">
+                  <Pressable
+                    key={r.id}
+                    onPress={() => {
+                      haptic.tick();
+                      onPick(r.id);
+                    }}
+                    style={({ pressed }) => [styles.row, i > 0 && styles.rowBorder, pressed && styles.rowPressed]}
+                    accessibilityRole="button">
                     <View style={[styles.rowDot, { backgroundColor: r.color ?? colors.fillStrong }]} />
                     <View style={{ flex: 1 }}>
-                      <Text variant="body" numberOfLines={1}>
-                        {r.name}
-                      </Text>
+                      <View style={styles.rowTitle}>
+                        <Text variant="body" numberOfLines={1} style={{ flexShrink: 1 }}>
+                          {r.name}
+                        </Text>
+                        {g !== 'Favoritos' && starred.has(r.id) ? <Icon name="star" size={11} color={colors.accent} /> : null}
+                      </View>
                       <Text variant="footnote" color={colors.textSecondary} numberOfLines={1}>
                         {r.hint}
                       </Text>
@@ -116,7 +136,7 @@ export function FindSheet({ rows, onPick, onClose }: Props) {
                       )
                     ) : null}
                     <Icon name="chevronRight" size={12} color={colors.textTertiary} />
-                  </PressableScale>
+                  </Pressable>
                 ))}
               </View>
             </View>
@@ -146,4 +166,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, paddingVertical: 10 },
   rowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline },
   rowDot: { width: 8, height: 8, borderRadius: 4 },
+  rowTitle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rowPressed: { backgroundColor: colors.fill },
 });

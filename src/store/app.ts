@@ -76,6 +76,8 @@ type State = {
   lastArDay: string | null;
   celebrationQueue: string[];
   planetarium: PlanetariumPrefs;
+  /** Planetarium targets the user starred, newest first. */
+  favorites: string[];
 };
 
 type Actions = {
@@ -95,6 +97,7 @@ type Actions = {
   logArSession: () => void;
   shiftCelebration: () => void;
   setPlanetarium: (p: Partial<PlanetariumPrefs>) => void;
+  toggleFavorite: (id: string) => void;
   evaluateBadges: () => void;
 };
 
@@ -140,6 +143,7 @@ export const useApp = create<State & Actions>()(
       lastArDay: null,
       celebrationQueue: [],
       planetarium: DEFAULT_PLANETARIUM,
+      favorites: [],
 
       setHydrated: () => set({ hydrated: true }),
       completeOnboarding: () => {
@@ -182,6 +186,7 @@ export const useApp = create<State & Actions>()(
       },
       shiftCelebration: () => set((s) => ({ celebrationQueue: s.celebrationQueue.slice(1) })),
       setPlanetarium: (p) => set((s) => ({ planetarium: { ...DEFAULT_PLANETARIUM, ...s.planetarium, ...p } })),
+      toggleFavorite: (id) => set((s) => ({ favorites: s.favorites.includes(id) ? s.favorites.filter((f) => f !== id) : [id, ...s.favorites] })),
       evaluateBadges: () => {
         const s = get();
         const ctx = badgeContext(s);

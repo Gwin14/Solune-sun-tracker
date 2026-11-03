@@ -44,13 +44,13 @@ export function skyGradient(alt: number): string[] {
   return [frame.colors[0], frame.colors[1]];
 }
 
-const NIGHT_BG = ['#05081A', '#10153A'];
+export const NIGHT_BG = ['#05081A', '#10153A'];
 
 type Ctx = { place: SavedPlace; use24h: boolean };
 
 // A widget sync renders ~60 timeline entries; most of what they show only changes once a
 // day, so everything expensive is computed once per place and local day.
-const sunDayFor = dayMemo(8, computeSunDay);
+export const sunDayFor = dayMemo(8, computeSunDay);
 const sunPathFor = dayMemo(3, (place, start) => computePath(A.Body.Sun, place, start).alt);
 const moonDayFor = dayMemo(3, computeMoonDay);
 // Enough quarters past the day's start that the next full and new moon are always in it.

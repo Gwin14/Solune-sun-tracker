@@ -94,3 +94,34 @@ export type SkyMomentProps = {
   endTime: string;
   caption: string;
 };
+
+/** One planetarium object as a widget row. */
+export type SkyObjectRow = {
+  id: string;
+  name: string;
+  color: string;
+  symbol: string;
+  /** Where it is at the entry's time: "34° NE", "Nasce 01:30", "Abaixo do horizonte". */
+  status: string;
+  /** "Melhor 04:05", or empty. */
+  best: string;
+  up: boolean;
+  url: string;
+};
+
+export type TonightWidgetProps = {
+  place: string;
+  /** Astronomical darkness tonight, "20:41–04:12", or a sentence when there is none. */
+  dark: string;
+  darkLabel: string;
+  moon: string;
+  moonSymbol: string;
+  /** Planets worth looking for tonight, in the order they are best seen. */
+  rows: SkyObjectRow[];
+  bg: string[];
+};
+
+export type FavoritesWidgetProps = {
+  rows: SkyObjectRow[];
+  bg: string[];
+};

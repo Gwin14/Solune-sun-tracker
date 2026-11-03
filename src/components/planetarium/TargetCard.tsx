@@ -21,12 +21,14 @@ type Props = {
   onClose: () => void;
   /** Opens the object's full page. */
   onDetails: () => void;
+  favorite: boolean;
+  onToggleFavorite: () => void;
   onBestTime?: (t: Date) => void;
 };
 
 const fmtMag = (m: number) => m.toFixed(1).replace('.', ',');
 
-export function TargetCard({ info, alt, az, plan, tz, use24h, locked, onClose, onDetails, onBestTime }: Props) {
+export function TargetCard({ info, alt, az, plan, tz, use24h, locked, onClose, onDetails, favorite, onToggleFavorite, onBestTime }: Props) {
   const up = alt > 0;
   // Compact so the crosshair above stays clear; the full story is on the object's page.
   return (
@@ -42,6 +44,15 @@ export function TargetCard({ info, alt, az, plan, tz, use24h, locked, onClose, o
               {info.subtitle}
             </Text>
           </View>
+        </PressableScale>
+        <PressableScale
+          onPress={onToggleFavorite}
+          hapticOnPress="light"
+          accessibilityLabel={favorite ? 'Remover dos favoritos' : 'Favoritar'}
+          accessibilityRole="button"
+          accessibilityState={{ selected: favorite }}
+          style={styles.close}>
+          <Icon name={favorite ? 'star' : 'starOutline'} size={14} color={favorite ? colors.accent : colors.text} />
         </PressableScale>
         <PressableScale onPress={onClose} hapticOnPress="soft" accessibilityLabel="Fechar" accessibilityRole="button" style={styles.close}>
           <Icon name="close" size={13} color={colors.text} />
@@ -127,7 +138,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
   title: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm },
   dot: { width: 12, height: 12, borderRadius: 6 },
-  close: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.fill, alignItems: 'center', justifyContent: 'center' },
+  close: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.fill, alignItems: 'center', justifyContent: 'center' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, height: 26, borderRadius: radius.pill, backgroundColor: colors.fill, borderWidth: 1, borderColor: 'transparent' },
   more: { marginLeft: 'auto', backgroundColor: colors.fillStrong },

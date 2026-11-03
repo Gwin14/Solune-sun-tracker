@@ -27,7 +27,7 @@ function WidgetSync() {
       }
     });
     const store = useApp.subscribe((s, prev) => {
-      if (selectPlace(s) !== selectPlace(prev) || s.use24h !== prev.use24h || s.checkIns !== prev.checkIns || s.xp !== prev.xp) {
+      if (selectPlace(s) !== selectPlace(prev) || s.use24h !== prev.use24h || s.checkIns !== prev.checkIns || s.xp !== prev.xp || s.favorites !== prev.favorites) {
         scheduleWidgetSync();
       }
     });

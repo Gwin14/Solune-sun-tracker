@@ -6,6 +6,7 @@ import { selectPlace, useApp } from '@/store/app';
 import { supportsWidgets } from '@/platform/native';
 
 import { eventProps, goldenProps, lockProps, moonProps, skyMomentProps, streakProps, sunProps, timelineMoments } from './data';
+import { favoritesProps, tonightPlanets, tonightProps, trackTargets } from './skyData';
 import type { SkyMomentProps } from './types';
 
 type Registry = typeof import('./registry');
@@ -62,6 +63,14 @@ export async function syncWidgets() {
       () => r.widgets.lock.updateTimeline(moments.map((date) => ({ date, props: lockProps(ctx, date) }))),
       () => r.widgets.moon.updateTimeline(hourly.map((date) => ({ date, props: moonProps(ctx, date) }))),
       () => r.widgets.event.updateTimeline(hourly.map((date) => ({ date, props: eventProps(ctx, date) }))),
+      () => {
+        const planets = tonightPlanets(ctx, now);
+        r.widgets.tonight.updateTimeline(hourly.map((date) => ({ date, props: tonightProps(ctx, date, planets) })));
+      },
+      () => {
+        const favorites = trackTargets(ctx, useApp.getState().favorites, now);
+        r.widgets.favorites.updateTimeline(hourly.map((date) => ({ date, props: favoritesProps(ctx, date, favorites) })));
+      },
       () => {
         const s = useApp.getState();
         r.widgets.streak.updateSnapshot(streakProps(s.checkIns.map((c) => c.key), s.xp, ctx.place.tz, now));

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
@@ -144,6 +144,8 @@ function ObjectPage({ id, model }: { id: TargetId; model: Model }) {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const use24h = useApp((s) => s.use24h);
+  const favorite = useApp((s) => s.favorites.includes(id));
+  const toggleFavorite = useApp((s) => s.toggleFavorite);
   const place = usePlace();
   const tz = place.tz;
   const { kind, info, pos, plan, frame, enu } = model;
@@ -169,6 +171,21 @@ function ObjectPage({ id, model }: { id: TargetId; model: Model }) {
 
   return (
     <View style={styles.root}>
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <PressableScale
+              onPress={() => toggleFavorite(id)}
+              hapticOnPress="light"
+              style={styles.headerBtn}
+              accessibilityRole="button"
+              accessibilityLabel={favorite ? 'Remover dos favoritos' : 'Favoritar'}
+              accessibilityState={{ selected: favorite }}>
+              <Icon name={favorite ? 'star' : 'starOutline'} size={18} color={favorite ? colors.accent : colors.text} />
+            </PressableScale>
+          ),
+        }}
+      />
       <ScrollView style={styles.root} contentInsetAdjustmentBehavior="never" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + space.xxl }}>
         <View style={{ height: heroH, backgroundColor: colors.ink }}>
           {kind === 'moon' ? (
@@ -404,6 +421,7 @@ function fitFov(frame: HorizonFrame, id: TargetId, centre: ArrayLike<number>): n
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.ink },
+  headerBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
   centred: { alignItems: 'center', justifyContent: 'center' },
   glow: { width: 28, height: 28, borderRadius: 14 },
   fadeTop: { position: 'absolute', top: 0, left: 0, right: 0 },

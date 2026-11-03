@@ -57,6 +57,7 @@ const ICONS = {
   thermometer: { ios: 'thermometer.sun.fill', android: 'thermostat', web: 'thermostat' },
   trophy: { ios: 'trophy.fill', android: 'emoji_events', web: 'emoji_events' },
   star: { ios: 'star.fill', android: 'star', web: 'star' },
+  starOutline: { ios: 'star', android: 'star_outline', web: 'star_outline' },
   constellation: { ios: 'point.3.connected.trianglepath.dotted', android: 'scatter_plot', web: 'scatter_plot' },
   galaxy: { ios: 'hurricane', android: 'cyclone', web: 'cyclone' },
   play: { ios: 'play.fill', android: 'play_arrow', web: 'play_arrow' },

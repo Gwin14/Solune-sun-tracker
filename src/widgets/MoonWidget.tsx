@@ -7,6 +7,14 @@ import type { MoonWidgetProps } from './types';
 /** Lua — today's phase as the system draws it, with illumination and the next full and new moon. */
 export default function MoonWidget(props: MoonWidgetProps, env: WidgetEnvironment) {
   'widget';
+  if (props.locked) {
+    return (
+      <VStack spacing={8} modifiers={[containerBackground({ type: 'color', color: '#0B1029' }, 'widget'), widgetURL('solune://paywall')]}>
+        <Image systemName="lock.fill" size={22} color="#F2BE6E" />
+        <Text modifiers={[font({ size: 13, weight: 'semibold' }), lineLimit(3)]}>{props.locked}</Text>
+      </VStack>
+    );
+  }
   const silver = '#CBD2F2';
   const tinted = env.widgetRenderingMode === 'accented' || env.widgetRenderingMode === 'vibrant';
   const secondary = foregroundStyle({ type: 'hierarchical', style: 'secondary' });

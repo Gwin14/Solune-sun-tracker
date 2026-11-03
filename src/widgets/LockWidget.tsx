@@ -12,6 +12,16 @@ type LockConfiguration = { focus?: string };
  */
 export default function LockWidget(props: LockWidgetProps, env: WidgetEnvironment<LockConfiguration>) {
   'widget';
+  if (props.locked) {
+    if (env.widgetFamily === 'accessoryInline') return <Text modifiers={[widgetURL('solune://paywall')]}>{props.locked}</Text>;
+    if (env.widgetFamily === 'accessoryCircular') return <Image systemName="lock.fill" size={20} modifiers={[widgetURL('solune://paywall')]} />;
+    return (
+      <VStack alignment="leading" spacing={2} modifiers={[widgetURL('solune://paywall')]}>
+        <Image systemName="lock.fill" size={14} />
+        <Text modifiers={[font({ size: 13, weight: 'semibold' }), lineLimit(2)]}>{props.locked}</Text>
+      </VStack>
+    );
+  }
   const focus = env.configuration?.focus ?? 'sun';
   const secondary = foregroundStyle({ type: 'hierarchical', style: 'secondary' });
   const family = env.widgetFamily;

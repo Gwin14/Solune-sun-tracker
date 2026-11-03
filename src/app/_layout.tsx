@@ -9,9 +9,11 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { resolveLanguage, useLanguage } from '@/i18n';
 import { refreshCurrentLocation } from '@/lib/location';
 import { rescheduleNotifications } from '@/lib/notifications';
+import { configurePurchases, usePro } from '@/lib/purchases';
 import { useApp } from '@/store/app';
 import { useLaunch } from '@/store/launch';
 import { colors } from '@/theme/tokens';
+import { scheduleWidgetSync } from '@/widgets/sync';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 // The launch mark dissolves into colors.ink, the splash's own background, so only the mark moves.
@@ -69,12 +71,18 @@ function CelebrationWatcher() {
 export default function RootLayout() {
   const appReady = usePersisted(useApp);
   const languageReady = usePersisted(useLanguage);
+  const proReady = usePersisted(usePro);
   const lang = useActiveLanguage();
   const hasOnboarded = useApp((s) => s.hasOnboarded);
-  const ready = appReady && languageReady;
+  const ready = appReady && languageReady && proReady;
 
   useEffect(() => {
     if (!ready) return;
+    // Pro unlocks widgets and extra reminders: rebuild both whenever it changes.
+    configurePurchases(() => {
+      scheduleWidgetSync();
+      if (useApp.getState().hasOnboarded) rescheduleNotifications();
+    });
     // Entrances start once the launch screen has actually left.
     SplashScreen.hideAsync()
       .catch(() => {})
@@ -116,6 +124,7 @@ export default function RootLayout() {
                   headerTintColor: colors.text,
                 }}
               />
+              <Stack.Screen name="paywall" options={{ presentation: 'modal', contentStyle: { backgroundColor: colors.inkSheet } }} />
               <Stack.Screen
                 name="celebrate"
                 options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }}

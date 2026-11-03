@@ -13,6 +13,7 @@ import { usePlace } from '@/hooks/useAstro';
 import { deviceLanguage, LANGUAGES, useLanguage, useT, type LanguagePref } from '@/i18n';
 import { haptic } from '@/lib/haptics';
 import { rescheduleNotifications, requestNotificationPermission } from '@/lib/notifications';
+import { manageSubscription, requirePro, usePro } from '@/lib/purchases';
 import { useApp, type NotificationPrefs } from '@/store/app';
 import { colors, radius, space } from '@/theme/tokens';
 
@@ -27,6 +28,7 @@ export default function SettingsScreen() {
     haptic.tick();
     useLanguage.getState().setPref(p);
   };
+  const pro = usePro((p) => p.isPro);
   const deviceName = LANGUAGES.find((l) => l.id === deviceLanguage())!.native;
 
   const toggleNotifications = async (v: boolean) => {
@@ -49,6 +51,10 @@ export default function SettingsScreen() {
     s.setNotification(k, v);
     rescheduleNotifications();
   };
+  /** Golden hour, moon phases and lead time are Solune Pro; others see the paywall instead. */
+  const setProPref = <K extends keyof NotificationPrefs>(k: K, v: NotificationPrefs[K]) => {
+    requirePro(() => setPref(k, v));
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.inkSheet }}>
@@ -61,6 +67,18 @@ export default function SettingsScreen() {
         </PressableScale>
       </View>
       <ScrollView contentContainerStyle={{ padding: space.md, paddingBottom: insets.bottom + space.xxl, gap: space.lg }}>
+        <Group title={tx.pro.title}>
+          {pro ? (
+            <Row icon="sun" label={tx.pro.title} detail={tx.pro.active} onPress={manageSubscription}>
+              <Text variant="callout" color={colors.accent}>
+                {tx.pro.manage}
+              </Text>
+            </Row>
+          ) : (
+            <Row icon="sun" label={tx.pro.discover} detail={tx.pro.discoverDetail} onPress={() => router.push('/paywall')} chevron />
+          )}
+        </Group>
+
         <Group title={tx.settings.place}>
           <Row icon={place.id === 'current' ? 'location' : 'pin'} label={place.name} detail={place.region} onPress={() => router.push('/locations')} chevron />
         </Group>
@@ -89,7 +107,7 @@ export default function SettingsScreen() {
           </Row>
         </Group>
 
-        <Group title={tx.settings.reminders} footer={tx.settings.remindersFooter}>
+        <Group title={tx.settings.reminders} footer={pro ? tx.settings.remindersFooter : `${tx.settings.remindersFooter} ${tx.pro.remindersPro}`}>
           <Row icon="bell" label={tx.settings.enableReminders}>
             <Toggle value={s.notificationsEnabled} onValueChange={toggleNotifications} />
           </Row>
@@ -104,16 +122,16 @@ export default function SettingsScreen() {
                 <Toggle value={s.notifications.sunset} onValueChange={(v) => setPref('sunset', v)} />
               </Row>
               <Divider style={styles.inset} />
-              <Row icon="sparkle" label={tx.sun.golden}>
-                <Toggle value={s.notifications.golden} onValueChange={(v) => setPref('golden', v)} />
+              <Row icon={pro ? 'sparkle' : 'lock'} label={tx.sun.golden}>
+                <Toggle value={pro && s.notifications.golden} onValueChange={(v) => setProPref('golden', v)} />
               </Row>
               <Divider style={styles.inset} />
-              <Row icon="moonFull" label={tx.moon.phase.full}>
-                <Toggle value={s.notifications.fullMoon} onValueChange={(v) => setPref('fullMoon', v)} />
+              <Row icon={pro ? 'moonFull' : 'lock'} label={tx.moon.phase.full}>
+                <Toggle value={pro && s.notifications.fullMoon} onValueChange={(v) => setProPref('fullMoon', v)} />
               </Row>
               <Divider style={styles.inset} />
-              <Row icon="stars" label={tx.moon.phase.new}>
-                <Toggle value={s.notifications.newMoon} onValueChange={(v) => setPref('newMoon', v)} />
+              <Row icon={pro ? 'stars' : 'lock'} label={tx.moon.phase.new}>
+                <Toggle value={pro && s.notifications.newMoon} onValueChange={(v) => setProPref('newMoon', v)} />
               </Row>
               <Divider style={styles.inset} />
               <View style={{ padding: space.md, gap: space.xs }}>
@@ -122,8 +140,8 @@ export default function SettingsScreen() {
                 </Text>
                 <Segmented
                   options={[tx.settings.onTime, '15 min', '30 min']}
-                  index={[0, 15, 30].indexOf(s.notifications.leadMinutes)}
-                  onChange={(i) => setPref('leadMinutes', ([0, 15, 30] as const)[i])}
+                  index={pro ? [0, 15, 30].indexOf(s.notifications.leadMinutes) : 0}
+                  onChange={(i) => (i === 0 ? setPref('leadMinutes', 0) : setProPref('leadMinutes', ([0, 15, 30] as const)[i]))}
                 />
               </View>
             </>

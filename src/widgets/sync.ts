@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+import { strings } from '@/i18n';
+import { isPro } from '@/lib/purchases';
 import { selectPlace, useApp } from '@/store/app';
 import { supportsWidgets } from '@/platform/native';
 
@@ -54,6 +56,13 @@ export async function syncWidgets() {
   const ctx = context();
   const now = new Date();
   try {
+    if (!isPro()) {
+      // Widgets are Solune Pro: everyone else gets a single prompt that opens the paywall.
+      const locked = { locked: strings().pro.widgetLocked } as never;
+      for (const w of Object.values(r.widgets)) w.updateSnapshot(locked);
+      lastSync = Date.now();
+      return;
+    }
     const moments = timelineMoments(ctx.place, now);
     // The moon and the event list only move once a day; hourly is plenty.
     const hourly = moments.filter((d, i) => i === 0 || d.getMinutes() === 0);

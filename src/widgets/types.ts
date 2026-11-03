@@ -1,6 +1,8 @@
 /** Props each widget receives. Plain JSON only: they cross into the widget runtime. */
 
 export type SunWidgetProps = {
+  /** Set when the user isn't Solune Pro: the widget shows only this unlock prompt. */
+  locked?: string;
   place: string;
   /** 'rise' | 'set' | 'polarDay' | 'polarNight' */
   nextKind: string;
@@ -25,6 +27,8 @@ export type SunWidgetProps = {
 };
 
 export type MoonWidgetProps = {
+  /** Set when the user isn't Solune Pro: the widget shows only this unlock prompt. */
+  locked?: string;
   place: string;
   phase: string;
   symbol: string;
@@ -41,6 +45,8 @@ export type MoonWidgetProps = {
 };
 
 export type GoldenWidgetProps = {
+  /** Set when the user isn't Solune Pro: the widget shows only this unlock prompt. */
+  locked?: string;
   place: string;
   /** 'before' | 'golden' | 'blue' | 'after' */
   state: string;
@@ -57,12 +63,16 @@ export type GoldenWidgetProps = {
 };
 
 export type LockWidgetProps = {
+  /** Set when the user isn't Solune Pro: the widget shows only this unlock prompt. */
+  locked?: string;
   sun: { label: string; time: string; at: number; progress: number; symbol: string; place: string };
   moon: { phase: string; symbol: string; illumination: number; next: string };
   golden: { label: string; short: string; window: string; at: number };
 };
 
 export type StreakWidgetProps = {
+  /** Set when the user isn't Solune Pro: the widget shows only this unlock prompt. */
+  locked?: string;
   streak: number;
   best: number;
   done: boolean;
@@ -77,6 +87,8 @@ export type StreakWidgetProps = {
 };
 
 export type EventWidgetProps = {
+  /** Set when the user isn't Solune Pro: the widget shows only this unlock prompt. */
+  locked?: string;
   title: string;
   subtitle: string;
   date: string;
@@ -116,6 +128,8 @@ export type SkyObjectRow = {
 };
 
 export type TonightWidgetProps = {
+  /** Set when the user isn't Solune Pro: the widget shows only this unlock prompt. */
+  locked?: string;
   place: string;
   /** Astronomical darkness tonight, "20:41–04:12", or a sentence when there is none. */
   dark: string;
@@ -129,6 +143,8 @@ export type TonightWidgetProps = {
 };
 
 export type FavoritesWidgetProps = {
+  /** Set when the user isn't Solune Pro: the widget shows only this unlock prompt. */
+  locked?: string;
   rows: SkyObjectRow[];
   bg: string[];
   labels: { title: string; emptyTitle: string; emptyBody: string };

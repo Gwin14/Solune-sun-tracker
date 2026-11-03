@@ -10,6 +10,14 @@ import type { SunWidgetProps } from './types';
  */
 export default function SunWidget(props: SunWidgetProps, env: WidgetEnvironment) {
   'widget';
+  if (props.locked) {
+    return (
+      <VStack spacing={8} modifiers={[containerBackground({ type: 'color', color: '#0B1029' }, 'widget'), widgetURL('solune://paywall')]}>
+        <Image systemName="lock.fill" size={22} color="#F2BE6E" />
+        <Text modifiers={[font({ size: 13, weight: 'semibold' }), lineLimit(3)]}>{props.locked}</Text>
+      </VStack>
+    );
+  }
   const accent = '#F2BE6E';
   const tinted = env.widgetRenderingMode === 'accented' || env.widgetRenderingMode === 'vibrant';
   const secondary = foregroundStyle({ type: 'hierarchical', style: 'secondary' });

@@ -5,6 +5,7 @@ import { nextQuarters } from '@/astro/moon';
 import { computeSunDay } from '@/astro/sun';
 import { addDays, MIN_MS, startOfDay } from '@/astro/time';
 import { strings } from '@/i18n';
+import { isPro } from '@/lib/purchases';
 import { selectPlace, useApp } from '@/store/app';
 
 let handlerSet = false;
@@ -47,7 +48,9 @@ export async function rescheduleNotifications(): Promise<number> {
     if (!perm.granted) return 0;
 
     const place = selectPlace(s);
-    const prefs = s.notifications;
+    // Sunrise and sunset on time are free; the rest of the reminders are Solune Pro.
+    const pro = isPro();
+    const prefs = pro ? s.notifications : { ...s.notifications, golden: false, fullMoon: false, newMoon: false, leadMinutes: 0 as const };
     const lead = prefs.leadMinutes * MIN_MS;
     const now = Date.now();
     const jobs: { at: number; title: string; body: string }[] = [];

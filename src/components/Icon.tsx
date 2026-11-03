@@ -69,6 +69,7 @@ const ICONS = {
   text: { ios: 'textformat', android: 'text_fields', web: 'text_fields' },
   ecliptic: { ios: 'circle.and.line.horizontal', android: 'show_chart', web: 'show_chart' },
   nightVision: { ios: 'eye.circle.fill', android: 'remove_red_eye', web: 'remove_red_eye' },
+  widget: { ios: 'square.grid.2x2.fill', android: 'widgets', web: 'widgets' },
 } as const satisfies Record<string, SymbolName>;
 
 export type IconName = keyof typeof ICONS;

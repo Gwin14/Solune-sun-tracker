@@ -35,6 +35,7 @@ import { usePlace } from '@/hooks/useAstro';
 import { angleDiff, edgeIndicator, makeUnprojector, makeVecProjector, polylines, poseFromRotation, smoothAngle, wrap360, type Pose, type Projector } from '@/lib/arMath';
 import { strings, useT } from '@/i18n';
 import { haptic } from '@/lib/haptics';
+import { requirePro, usePro } from '@/lib/purchases';
 import { DEFAULT_PLANETARIUM, useApp, type PlanetariumPrefs } from '@/store/app';
 import { useSkyIntent } from '@/store/skyIntent';
 import { colors, weight, radius, space } from '@/theme/tokens';
@@ -72,7 +73,12 @@ function SkyScreen() {
   const favorites = useApp((s) => s.favorites);
   const toggleFavorite = useApp((s) => s.toggleFavorite);
   const tx = useT();
-  const P: PlanetariumPrefs = useMemo(() => ({ ...DEFAULT_PLANETARIUM, ...storedPrefs }), [storedPrefs]);
+  const pro = usePro((p) => p.isPro);
+  // Deep sky and star trails are Solune Pro: off for everyone else whatever was stored.
+  const P: PlanetariumPrefs = useMemo(() => {
+    const merged = { ...DEFAULT_PLANETARIUM, ...storedPrefs };
+    return pro ? merged : { ...merged, deepSky: false, trails: false };
+  }, [storedPrefs, pro]);
   const tz = place.tz;
   const [cameraPerm, requestCamera] = useCameraPermissions();
   const [sensorsOk, setSensorsOk] = useState<boolean | null>(null);
@@ -702,8 +708,9 @@ function SkyScreen() {
                   <LayerToggle icon="text" label={tx.sky.names} on={P.labels} onPress={() => setPrefs({ labels: !P.labels })} />
                   <LayerToggle icon="galaxy" label={tx.sky.milkyWay} on={P.milkyWay} onPress={() => setPrefs({ milkyWay: !P.milkyWay })} />
                   <LayerToggle icon="orbit" label={tx.sky.planets} on={P.planets} onPress={() => setPrefs({ planets: !P.planets })} />
-                  <LayerToggle icon="telescope" label={tx.sky.deepSky} on={P.deepSky} onPress={() => setPrefs({ deepSky: !P.deepSky })} />
-                  <LayerToggle icon="trails" label={tx.sky.trails} on={P.trails} onPress={() => {
+                  <LayerToggle icon={pro ? 'telescope' : 'lock'} label={tx.sky.deepSky} on={P.deepSky} onPress={() => requirePro(() => setPrefs({ deepSky: !P.deepSky }))} />
+                  <LayerToggle icon={pro ? 'trails' : 'lock'} label={tx.sky.trails} on={P.trails} onPress={() => {
+                    if (!requirePro()) return;
                     if (!P.trails) setHint(tx.sky.trailsHint(place.latitude < 0));
                     setPrefs({ trails: !P.trails });
                   }} />
@@ -787,7 +794,7 @@ function SkyScreen() {
         ) : planetarium && frame ? (
           <View style={styles.infoRow}>
             <InfoChip icon={selected.sun.alt > -6 ? 'sunHorizon' : 'stars'} label={LIGHT_PHASE_LABEL[lightPhase(selected.sun.alt)]} />
-            <PressableScale onPress={() => setFinding(true)} hapticOnPress="soft" accessibilityRole="button" accessibilityLabel={tx.sky.visiblePlanetsA11y}>
+            <PressableScale onPress={() => requirePro(() => setFinding(true))} hapticOnPress="soft" accessibilityRole="button" accessibilityLabel={tx.sky.visiblePlanetsA11y}>
               <InfoChip icon="orbit" label={tx.sky.visiblePlanets(planetsUp)} highlight={planetsUp > 0} />
             </PressableScale>
           </View>
@@ -820,6 +827,8 @@ function SkyScreen() {
                 ) : null}
                 <PressableScale
                   onPress={() => {
+                    // Time-lapse is Solune Pro; pausing always works.
+                    if (!playing && !requirePro()) return;
                     setLive(false);
                     setPlaying((p) => !p);
                   }}
@@ -839,7 +848,7 @@ function SkyScreen() {
                     <Icon name="viewfinder" size={15} color={calibrating ? colors.onPrimary : colors.text} />
                   </PressableScale>
                 ) : null}
-                <PressableScale onPress={() => setFinding(true)} hapticOnPress="soft" style={styles.roundAction} accessibilityRole="button" accessibilityLabel={tx.find.title}>
+                <PressableScale onPress={() => requirePro(() => setFinding(true))} hapticOnPress="soft" style={styles.roundAction} accessibilityRole="button" accessibilityLabel={tx.find.title}>
                   <Icon name="search" size={15} color={colors.text} />
                 </PressableScale>
               </>

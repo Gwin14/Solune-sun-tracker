@@ -14,7 +14,8 @@
       "infoPlist": {
         "UIViewControllerBasedStatusBarAppearance": true,
         "CFBundleDevelopmentRegion": "pt-BR",
-        "CFBundleAllowMixedLocalizations": true
+        "CFBundleAllowMixedLocalizations": true,
+        "ITSAppUsesNonExemptEncryption": false
       },
       "appleTeamId": "77MXYLFJ7J"
     },

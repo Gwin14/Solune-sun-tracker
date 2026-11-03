@@ -7,7 +7,7 @@ import { AppState } from 'react-native';
 
 import { selectPlace, useApp } from '@/store/app';
 import { skyCatalogEntity } from '@/widgets/data';
-import { reconcileSkyMoments, scheduleWidgetSync, startSkyMoment, type SkyMomentKind } from '@/widgets/sync';
+import { reconcileSkyMoments, refreshWidgetsIfStale, scheduleWidgetSync, startSkyMoment, type SkyMomentKind } from '@/widgets/sync';
 
 import { supportsAppIntents, supportsQuickActions, supportsWidgets } from './native';
 
@@ -17,16 +17,17 @@ const ROUTES = ['/', '/moon', '/sky', '/events', '/journal'];
 /** Keeps widgets current: on launch, on return to the app, and whenever what they show changes. */
 function WidgetSync() {
   useEffect(() => {
-    scheduleWidgetSync(0);
+    // Not during launch: the first screens get the JS thread first.
+    scheduleWidgetSync(3000);
     reconcileSkyMoments();
     const app = AppState.addEventListener('change', (s) => {
       if (s === 'active') {
-        scheduleWidgetSync();
+        refreshWidgetsIfStale();
         reconcileSkyMoments();
       }
     });
     const store = useApp.subscribe((s, prev) => {
-      if (selectPlace(s) !== selectPlace(prev) || s.use24h !== prev.use24h || s.checkIns !== prev.checkIns || s.xp !== prev.xp) {
+      if (selectPlace(s) !== selectPlace(prev) || s.use24h !== prev.use24h || s.checkIns !== prev.checkIns || s.xp !== prev.xp || s.favorites !== prev.favorites) {
         scheduleWidgetSync();
       }
     });

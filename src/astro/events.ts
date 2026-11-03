@@ -2,6 +2,8 @@ import * as A from 'astronomy-engine';
 
 import { fullMoonName, moonState, SUPERMOON_KM } from './moon';
 import { moonPosition, observer, sunPosition, type Place } from './sun';
+import { dayMemo } from '@/lib/dayMemo';
+
 import { DAY_MS, wallClock } from './time';
 
 export type SkyEventKind = 'season' | 'lunarEclipse' | 'solarEclipse' | 'fullMoon' | 'meteor' | 'supermoon';
@@ -138,3 +140,6 @@ export function upcomingEvents(place: Place, from: Date, horizonDays = 400): Sky
 
   return events.sort((a, b) => a.date.getTime() - b.date.getTime());
 }
+
+/** The default 400-day scan from a local day's start, shared by the Events tab and the widgets. */
+export const upcomingEventsForDay = dayMemo(2, (place: Place, start: Date) => upcomingEvents(place, start));

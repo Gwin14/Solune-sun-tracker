@@ -6,6 +6,7 @@ import { selectPlace, useApp } from '@/store/app';
 import { supportsWidgets } from '@/platform/native';
 
 import { eventProps, goldenProps, lockProps, moonProps, skyMomentProps, streakProps, sunProps, timelineMoments } from './data';
+import { favoritesProps, tonightPlanets, tonightProps, trackTargets } from './skyData';
 import type { SkyMomentProps } from './types';
 
 type Registry = typeof import('./registry');
@@ -35,26 +36,52 @@ function context() {
   return { place: selectPlace(s), use24h: s.use24h };
 }
 
+const yieldToUI = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+let generation = 0;
+let lastSync = 0;
+
 /**
  * Pushes fresh content to every widget: a day of timeline entries for the ones that change
  * with the sun, a snapshot for the rest. WidgetKit then advances them with the app closed.
+ * Each widget is its own slice of work so the JS thread can answer touches between them;
+ * a newer sync cancels one still in progress.
  */
-export function syncWidgets() {
+export async function syncWidgets() {
   const r = native();
   if (!r) return;
+  const run = ++generation;
   const ctx = context();
   const now = new Date();
   try {
     const moments = timelineMoments(ctx.place, now);
-    r.widgets.sun.updateTimeline(moments.map((date) => ({ date, props: sunProps(ctx, date) })));
-    r.widgets.golden.updateTimeline(moments.map((date) => ({ date, props: goldenProps(ctx, date) })));
-    r.widgets.lock.updateTimeline(moments.map((date) => ({ date, props: lockProps(ctx, date) })));
     // The moon and the event list only move once a day; hourly is plenty.
     const hourly = moments.filter((d, i) => i === 0 || d.getMinutes() === 0);
-    r.widgets.moon.updateTimeline(hourly.map((date) => ({ date, props: moonProps(ctx, date) })));
-    r.widgets.event.updateTimeline(hourly.map((date) => ({ date, props: eventProps(ctx, date) })));
-    const s = useApp.getState();
-    r.widgets.streak.updateSnapshot(streakProps(s.checkIns.map((c) => c.key), s.xp, ctx.place.tz, now));
+    const steps = [
+      () => r.widgets.sun.updateTimeline(moments.map((date) => ({ date, props: sunProps(ctx, date) }))),
+      () => r.widgets.golden.updateTimeline(moments.map((date) => ({ date, props: goldenProps(ctx, date) }))),
+      () => r.widgets.lock.updateTimeline(moments.map((date) => ({ date, props: lockProps(ctx, date) }))),
+      () => r.widgets.moon.updateTimeline(hourly.map((date) => ({ date, props: moonProps(ctx, date) }))),
+      () => r.widgets.event.updateTimeline(hourly.map((date) => ({ date, props: eventProps(ctx, date) }))),
+      () => {
+        const planets = tonightPlanets(ctx, now);
+        r.widgets.tonight.updateTimeline(hourly.map((date) => ({ date, props: tonightProps(ctx, date, planets) })));
+      },
+      () => {
+        const favorites = trackTargets(ctx, useApp.getState().favorites, now);
+        r.widgets.favorites.updateTimeline(hourly.map((date) => ({ date, props: favoritesProps(ctx, date, favorites) })));
+      },
+      () => {
+        const s = useApp.getState();
+        r.widgets.streak.updateSnapshot(streakProps(s.checkIns.map((c) => c.key), s.xp, ctx.place.tz, now));
+      },
+    ];
+    for (const step of steps) {
+      await yieldToUI();
+      if (run !== generation) return;
+      step();
+    }
+    lastSync = Date.now();
   } catch (e) {
     if (__DEV__) console.warn('[widgets] sync failed', e);
   }
@@ -65,6 +92,11 @@ export function scheduleWidgetSync(delay = 600) {
   if (!native()) return;
   clearTimeout(timer);
   timer = setTimeout(syncWidgets, delay);
+}
+
+/** Coming back to the app: the timelines already cover the next day, so refresh at most every 15 min. */
+export function refreshWidgetsIfStale() {
+  if (Date.now() - lastSync > 15 * 60_000) scheduleWidgetSync(1500);
 }
 
 export type SkyMomentKind = SkyMomentProps['kind'];

@@ -5,13 +5,15 @@
 import { createLiveActivity, createWidget } from 'expo-widgets';
 
 import EventWidget from './EventWidget';
+import FavoritesWidget from './FavoritesWidget';
 import GoldenWidget from './GoldenWidget';
 import LockWidget from './LockWidget';
 import MoonWidget from './MoonWidget';
 import SkyMomentActivity from './SkyMomentActivity';
 import StreakWidget from './StreakWidget';
 import SunWidget from './SunWidget';
-import type { EventWidgetProps, GoldenWidgetProps, LockWidgetProps, MoonWidgetProps, SkyMomentProps, StreakWidgetProps, SunWidgetProps } from './types';
+import TonightWidget from './TonightWidget';
+import type { EventWidgetProps, FavoritesWidgetProps, GoldenWidgetProps, LockWidgetProps, MoonWidgetProps, SkyMomentProps, StreakWidgetProps, SunWidgetProps, TonightWidgetProps } from './types';
 
 // Names match the `widgets` entries of the expo-widgets plugin in app.json.
 export const widgets = {
@@ -21,6 +23,8 @@ export const widgets = {
   lock: createWidget<LockWidgetProps, { focus?: string }>('LockWidget', LockWidget),
   streak: createWidget<StreakWidgetProps>('StreakWidget', StreakWidget),
   event: createWidget<EventWidgetProps>('EventWidget', EventWidget),
+  tonight: createWidget<TonightWidgetProps>('TonightWidget', TonightWidget),
+  favorites: createWidget<FavoritesWidgetProps>('FavoritesWidget', FavoritesWidget),
 };
 
 export const skyMoment = createLiveActivity<SkyMomentProps>('SkyMoment', SkyMomentActivity);

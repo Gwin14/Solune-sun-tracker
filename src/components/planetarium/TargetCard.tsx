@@ -1,6 +1,5 @@
-import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { FadeIn, FadeInDown, FadeOutDown, LinearTransition } from 'react-native-reanimated';
+import Animated, { FadeInDown, FadeOutDown, LinearTransition } from 'react-native-reanimated';
 
 import { compassPoint, formatDegrees, formatTime } from '@/astro/format';
 import type { ViewingPlan } from '@/astro/sky/engine';
@@ -20,28 +19,41 @@ type Props = {
   /** The target sits in the crosshair. */
   locked: boolean;
   onClose: () => void;
+  /** Opens the object's full page. */
+  onDetails: () => void;
+  favorite: boolean;
+  onToggleFavorite: () => void;
   onBestTime?: (t: Date) => void;
 };
 
 const fmtMag = (m: number) => m.toFixed(1).replace('.', ',');
 
-export function TargetCard({ info, alt, az, plan, tz, use24h, locked, onClose, onBestTime }: Props) {
+export function TargetCard({ info, alt, az, plan, tz, use24h, locked, onClose, onDetails, favorite, onToggleFavorite, onBestTime }: Props) {
   const up = alt > 0;
-  // Compact by default so the crosshair above stays clear; the story is one tap away.
-  const [open, setOpen] = useState(false);
-  const hasMore = !!(info.note || info.distance || info.flag);
+  // Compact so the crosshair above stays clear; the full story is on the object's page.
   return (
     <Animated.View entering={FadeInDown.duration(260)} exiting={FadeOutDown.duration(180)} layout={LinearTransition.duration(220)} style={styles.card}>
       <View style={styles.header}>
-        <View style={[styles.dot, { backgroundColor: info.color, boxShadow: `0 0 10px ${info.color}` }]} />
-        <View style={{ flex: 1 }}>
-          <Text variant="title3" numberOfLines={1}>
-            {info.title}
-          </Text>
-          <Text variant="footnote" color={colors.textSecondary} numberOfLines={1}>
-            {info.subtitle}
-          </Text>
-        </View>
+        <PressableScale onPress={onDetails} scaleTo={0.98} hapticOnPress="soft" style={styles.title} accessibilityRole="button" accessibilityHint="Abre a página completa">
+          <View style={[styles.dot, { backgroundColor: info.color, boxShadow: `0 0 10px ${info.color}` }]} />
+          <View style={{ flex: 1 }}>
+            <Text variant="title3" numberOfLines={1}>
+              {info.title}
+            </Text>
+            <Text variant="footnote" color={colors.textSecondary} numberOfLines={1}>
+              {info.subtitle}
+            </Text>
+          </View>
+        </PressableScale>
+        <PressableScale
+          onPress={onToggleFavorite}
+          hapticOnPress="light"
+          accessibilityLabel={favorite ? 'Remover dos favoritos' : 'Favoritar'}
+          accessibilityRole="button"
+          accessibilityState={{ selected: favorite }}
+          style={styles.close}>
+          <Icon name={favorite ? 'star' : 'starOutline'} size={14} color={favorite ? colors.accent : colors.text} />
+        </PressableScale>
         <PressableScale onPress={onClose} hapticOnPress="soft" accessibilityLabel="Fechar" accessibilityRole="button" style={styles.close}>
           <Icon name="close" size={13} color={colors.text} />
         </PressableScale>
@@ -60,16 +72,12 @@ export function TargetCard({ info, alt, az, plan, tz, use24h, locked, onClose, o
             <Text variant="caption">Brilho {fmtMag(info.mag)}</Text>
           </View>
         ) : null}
-        {hasMore ? (
-          <PressableScale onPress={() => setOpen((o) => !o)} hapticOnPress="tick" style={[styles.chip, styles.more]} accessibilityRole="button" accessibilityState={{ expanded: open }}>
-            <Text variant="caption" color={colors.text}>
-              {open ? 'Menos' : 'Saiba mais'}
-            </Text>
-            <View style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }}>
-              <Icon name="chevronDown" size={11} color={colors.text} />
-            </View>
-          </PressableScale>
-        ) : null}
+        <PressableScale onPress={onDetails} hapticOnPress="soft" style={[styles.chip, styles.more]} accessibilityRole="button">
+          <Text variant="caption" color={colors.text}>
+            Detalhes
+          </Text>
+          <Icon name="chevronRight" size={10} color={colors.text} />
+        </PressableScale>
       </View>
 
       {plan ? (
@@ -101,24 +109,6 @@ export function TargetCard({ info, alt, az, plan, tz, use24h, locked, onClose, o
         </View>
       ) : null}
 
-      {open && hasMore ? (
-        <Animated.ScrollView entering={FadeIn.duration(200)} style={{ maxHeight: 150 }} contentContainerStyle={{ gap: 6 }} showsVerticalScrollIndicator={false}>
-          {info.note ? <Text variant="subhead">{info.note}</Text> : null}
-          {info.distance ? (
-            <Text variant="footnote" color={colors.textSecondary}>
-              {info.distance}
-            </Text>
-          ) : null}
-          {info.flag ? (
-            <View style={styles.flag}>
-              <View style={styles.flagMark} />
-              <Text variant="footnote" color={colors.textSecondary}>
-                Na bandeira do Brasil, representa {info.flag}.
-              </Text>
-            </View>
-          ) : null}
-        </Animated.ScrollView>
-      ) : null}
     </Animated.View>
   );
 }
@@ -146,13 +136,12 @@ const styles = StyleSheet.create({
     gap: space.sm,
   },
   header: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  title: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.sm },
   dot: { width: 12, height: 12, borderRadius: 6 },
-  close: { width: 30, height: 30, borderRadius: 15, backgroundColor: colors.fill, alignItems: 'center', justifyContent: 'center' },
+  close: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.fill, alignItems: 'center', justifyContent: 'center' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.xs },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, height: 26, borderRadius: radius.pill, backgroundColor: colors.fill, borderWidth: 1, borderColor: 'transparent' },
   more: { marginLeft: 'auto', backgroundColor: colors.fillStrong },
   times: { flexDirection: 'row', alignItems: 'center', gap: space.lg, flexWrap: 'wrap' },
   best: { marginLeft: 'auto', backgroundColor: colors.accent, borderRadius: radius.tile, paddingHorizontal: space.sm, paddingVertical: 6 },
-  flag: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  flagMark: { width: 10, height: 7, borderRadius: 1.5, backgroundColor: '#2BA84A', borderWidth: 1.5, borderColor: '#F7D117' },
 });

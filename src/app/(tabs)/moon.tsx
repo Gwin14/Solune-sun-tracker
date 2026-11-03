@@ -1,7 +1,8 @@
+import { useIsFocused } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
-import Animated, { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { cancelAnimation, Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -12,6 +13,7 @@ import { Appear } from '@/components/Appear';
 import { Card, Divider } from '@/components/Card';
 import { LunarWave, ProgressBar } from '@/components/charts';
 import { Icon } from '@/components/Icon';
+import { lazyTab } from '@/components/LazyTab';
 import { MoonGlyph } from '@/components/MoonGlyph';
 import { PressableScale } from '@/components/Pressable';
 import { Metric, Reveal, ScreenTitle } from '@/components/Screen';
@@ -28,7 +30,9 @@ import { colors, radius, space } from '@/theme/tokens';
 const PX_PER_DAY = 22;
 const RANGE = 15;
 
-export default function MoonScreen() {
+export default lazyTab(MoonScreen);
+
+function MoonScreen() {
   const insets = useSafeAreaInsets();
   const bottom = useTabBarSpace();
   const { width } = useWindowDimensions();
@@ -85,10 +89,12 @@ export default function MoonScreen() {
   };
 
   const float = useSharedValue(0);
+  const focused = useIsFocused();
   useEffect(() => {
-    if (reduce) return;
+    if (reduce || !focused) return;
     float.set(withRepeat(withTiming(1, { duration: 4200, easing: Easing.inOut(Easing.sin) }), -1, true));
-  }, [float, reduce]);
+    return () => cancelAnimation(float);
+  }, [float, reduce, focused]);
   const moonStyle = useAnimatedStyle(() => ({ transform: [{ translateX: drag.get() }, { translateY: float.get() * -6 }] }));
 
   const size = Math.min(width - 120, 240);

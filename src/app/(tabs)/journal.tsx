@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useShallow } from 'zustand/react/shallow';
 
 import { capitalize, formatDate, formatTime, WEEKDAYS_LETTER } from '@/astro/format';
 import { dayKey, shiftKey } from '@/astro/time';
@@ -9,6 +10,7 @@ import { Card, Divider } from '@/components/Card';
 import { ProgressBar, ProgressRing } from '@/components/charts';
 import { CheckInCard } from '@/components/CheckInCard';
 import { Icon } from '@/components/Icon';
+import { lazyTab } from '@/components/LazyTab';
 import { Reveal, ScreenTitle } from '@/components/Screen';
 import { SkyBackground } from '@/components/SkyBackground';
 import { useTabBarSpace } from '@/components/TabSpace';
@@ -23,7 +25,9 @@ import { colors, space } from '@/theme/tokens';
 const KIND_LABEL = { sunrise: 'Nascer do sol', sunset: 'Pôr do sol', moon: 'Lua' } as const;
 const KIND_ICON = { sunrise: 'sunrise', sunset: 'sunset', moon: 'moon' } as const;
 
-export default function JournalScreen() {
+export default lazyTab(JournalScreen);
+
+function JournalScreen() {
   const insets = useSafeAreaInsets();
   const bottom = useTabBarSpace();
   const { width } = useWindowDimensions();
@@ -31,7 +35,9 @@ export default function JournalScreen() {
   const now = useNow();
   const tz = place.tz;
   const use24h = useApp((s) => s.use24h);
-  const state = useApp();
+  const state = useApp(
+    useShallow((s) => ({ checkIns: s.checkIns, xp: s.xp, badges: s.badges, arSessions: s.arSessions, places: s.places, hasOnboarded: s.hasOnboarded })),
+  );
   const ctx = useMemo(() => badgeContext(state), [state]);
   const level = levelFor(state.xp);
   const { today, tomorrow } = useSunToday(place, now);

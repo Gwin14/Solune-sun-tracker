@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs><mask id="m" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024"><rect width="1024" height="1024" fill="#fff"/><circle cx="805.4" cy="233.8" r="80.3" fill="#000"/></mask></defs>
+<path fill="#EEF0FF" fill-rule="evenodd" d="M677.3000000000001 259.3a91.9 91.9 0 1 0 183.8 0a91.9 91.9 0 1 0 -183.8 0Z" mask="url(#m)"/>
+</svg>

@@ -2,9 +2,9 @@ import * as A from 'astronomy-engine';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { DeviceMotion } from 'expo-sensors';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import { GestureDetector, usePanGesture, usePinchGesture, useSimultaneousGestures, useTapGesture } from 'react-native-gesture-handler';
 import Animated, { FadeIn, FadeOut, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -15,12 +15,13 @@ import { scheduleOnRN } from 'react-native-worklets';
 import { compassPoint, formatDate, formatDegrees, formatMinuteOfDay, formatTime } from '@/astro/format';
 import { moonState } from '@/astro/moon';
 import { catalog, starColor } from '@/astro/sky/catalog';
-import { altAz, constellationAt, enuFromAltAz, horizonFrame, planViewing, PLANETS, starTrails, trailStars } from '@/astro/sky/engine';
+import { altAz, constellationAt, enuFromAltAz, horizonFrame, planViewing, PLANETS, starTrails, trailStars, type HorizonFrame } from '@/astro/sky/engine';
 import { describeTarget, kindOf, searchIndex, targetEnu, targetEqjAt, type TargetId } from '@/astro/sky/targets';
 import { computePath, computeSunDay, LIGHT_PHASE_LABEL, lightPhase, moonPosition, observer, PATH_STEP_MIN, sunPosition } from '@/astro/sun';
 import { addDays, dayKey, daysBetweenKeys, MIN_MS, startOfDay, wallClock } from '@/astro/time';
 import { Button } from '@/components/Button';
 import { Icon, type IconName } from '@/components/Icon';
+import { lazyTab } from '@/components/LazyTab';
 import { MoonGlyph } from '@/components/MoonGlyph';
 import { FindSheet, type FindRow } from '@/components/planetarium/FindSheet';
 import { PlanetariumSky, type SkyVisibility } from '@/components/planetarium/PlanetariumSky';
@@ -34,6 +35,7 @@ import { usePlace } from '@/hooks/useAstro';
 import { angleDiff, edgeIndicator, makeUnprojector, makeVecProjector, polylines, poseFromRotation, smoothAngle, wrap360, type Pose, type Projector } from '@/lib/arMath';
 import { haptic } from '@/lib/haptics';
 import { DEFAULT_PLANETARIUM, useApp, type PlanetariumPrefs } from '@/store/app';
+import { useSkyIntent } from '@/store/skyIntent';
 import { colors, weight, radius, space } from '@/theme/tokens';
 
 type Mode = 'camera' | 'virtual';
@@ -57,14 +59,19 @@ const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
 const easeInOut = (k: number) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
 const lerp = (a: number, b: number, k: number) => a + (b - a) * clamp(k, 0, 1);
 
-export default function SkyScreen() {
+// Mounting asks for motion access, so it waits until the tab is actually opened.
+export default lazyTab(SkyScreen, '#000');
+
+function SkyScreen() {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const place = usePlace();
   const use24h = useApp((s) => s.use24h);
   const storedPrefs = useApp((s) => s.planetarium);
   const setPrefs = useApp((s) => s.setPlanetarium);
-  const P: PlanetariumPrefs = { ...DEFAULT_PLANETARIUM, ...storedPrefs };
+  const favorites = useApp((s) => s.favorites);
+  const toggleFavorite = useApp((s) => s.toggleFavorite);
+  const P: PlanetariumPrefs = useMemo(() => ({ ...DEFAULT_PLANETARIUM, ...storedPrefs }), [storedPrefs]);
   const tz = place.tz;
   const [cameraPerm, requestCamera] = useCameraPermissions();
   const [sensorsOk, setSensorsOk] = useState<boolean | null>(null);
@@ -117,17 +124,40 @@ export default function SkyScreen() {
   }, [tMs, place]);
 
   // ---- pose ----
-  const [pose, setPose] = useState<Pose>({ az: selected.sun.alt > -10 ? selected.sun.az : selected.moon.az, alt: 15, roll: 0 });
-  const [vfov, setVfov] = useState(70);
+  // Pose and zoom live outside React state: sensors, drags and glides publish them to a
+  // small store at most once per frame, and only the sky layer (SkyStage) and the heading
+  // re-render for it. The HUD, cards and time controls stay put while the view moves.
+  const initialPose: Pose = { az: selected.sun.alt > -10 ? selected.sun.az : selected.moon.az, alt: 15, roll: 0 };
+  const poseRef = useRef(initialPose);
+  const vfovRef = useRef(70);
+  const [view] = useState(() => createViewStore({ pose: initialPose, vfov: 70 }));
   const declination = useRef(0);
   const offset = useRef({ az: 0, alt: 0 });
   const smooth = useRef<Pose | null>(null);
-  const poseRef = useRef(pose);
-  const vfovRef = useRef(vfov);
-  useEffect(() => {
-    poseRef.current = pose;
-    vfovRef.current = vfov;
-  }, [pose, vfov]);
+  /** While a full-screen sheet covers the sky, moving the phone doesn't redraw it. */
+  const frozen = useRef(false);
+  const poseFrame = useRef<number | null>(null);
+  const publishView = () => {
+    if (frozen.current || poseFrame.current != null) return;
+    poseFrame.current = requestAnimationFrame(() => {
+      poseFrame.current = null;
+      view.set({ pose: poseRef.current, vfov: vfovRef.current });
+    });
+  };
+  const commitPose = (next: Pose) => {
+    poseRef.current = next;
+    publishView();
+  };
+  const setVfov = (v: number) => {
+    vfovRef.current = v;
+    publishView();
+  };
+  useEffect(
+    () => () => {
+      if (poseFrame.current != null) cancelAnimationFrame(poseFrame.current);
+    },
+    [],
+  );
 
   // As a tab this screen stays mounted: run the camera and sensors only while it is in front.
   const [focused, setFocused] = useState(false);
@@ -146,14 +176,15 @@ export default function SkyScreen() {
     }, [tz]),
   );
 
-  // Live: follow the real clock. The planetarium refreshes often so stars visibly drift.
+  // Live: follow the real clock. Stars drift 0.04° in 10 s (under a pixel), so the planetarium
+  // doesn't need to rebuild the whole sky any more often than that.
   useEffect(() => {
     if (!live || !focused) return;
     const id = setInterval(() => {
       const f = new Date();
       setNow(f);
       setCursor({ dayShift: 0, minute: wallClock(f, tz).minuteOfDay });
-    }, planetarium ? 2000 : 15000);
+    }, planetarium ? 10000 : 15000);
     return () => clearInterval(id);
   }, [live, focused, planetarium, tz]);
 
@@ -241,7 +272,11 @@ export default function SkyScreen() {
         ? { az: smoothAngle(prev.az, target.az, k), alt: prev.alt + (target.alt - prev.alt) * k, roll: smoothAngle(prev.roll, target.roll, k) }
         : target;
       smooth.current = next;
-      setPose({ az: next.az, alt: next.alt, roll: next.roll > 180 ? next.roll - 360 : next.roll });
+      const roll = next.roll > 180 ? next.roll - 360 : next.roll;
+      const cur = poseRef.current;
+      // A phone at rest still reports noise: don't redraw the sky for it.
+      if (Math.abs(angleDiff(next.az, cur.az)) < 0.03 && Math.abs(next.alt - cur.alt) < 0.03 && Math.abs(roll - cur.roll) < 0.08) return;
+      commitPose({ az: next.az, alt: next.alt, roll });
     });
     let headingSub: Location.LocationSubscription | null = null;
     Location.watchHeadingAsync((h) => {
@@ -257,6 +292,11 @@ export default function SkyScreen() {
   }, [mode, sensorsOk, focused]);
 
   // ---- virtual sky motion: drag, fling with inertia, glide to targets ----
+  // The planetarium can look all the way down: the sky continues under the ground.
+  const minAlt = useRef(-30);
+  useEffect(() => {
+    minAlt.current = planetarium ? -85 : -30;
+  }, [planetarium]);
   const motion = useRef<number | null>(null);
   const stopMotion = () => {
     if (motion.current != null) cancelAnimationFrame(motion.current);
@@ -268,15 +308,14 @@ export default function SkyScreen() {
     const from = { ...poseRef.current };
     const f0 = vfovRef.current;
     const dAz = angleDiff(az, from.az);
-    const toAlt = clamp(alt, -30, 85);
+    const toAlt = clamp(alt, minAlt.current, 85);
     const dur = clamp(500 + Math.hypot(dAz, toAlt - from.alt) * 4, 600, 1300);
     const t0 = Date.now();
     const step = () => {
       const k = Math.min(1, (Date.now() - t0) / dur);
       const e = easeInOut(k);
       const next = { az: wrap360(from.az + dAz * e), alt: from.alt + (toAlt - from.alt) * e, roll: 0 };
-      poseRef.current = next;
-      setPose(next);
+      commitPose(next);
       if (fovTarget) setVfov(f0 + (fovTarget - f0) * e);
       motion.current = k < 1 ? requestAnimationFrame(step) : null;
     };
@@ -294,9 +333,8 @@ export default function SkyScreen() {
       const dt = Math.min(0.05, (t - last) / 1000);
       last = t;
       const p = poseRef.current;
-      const next = { az: wrap360(p.az + vAz * dt), alt: clamp(p.alt + vAlt * dt, -30, 85), roll: 0 };
-      poseRef.current = next;
-      setPose(next);
+      const next = { az: wrap360(p.az + vAz * dt), alt: clamp(p.alt + vAlt * dt, minAlt.current, 85), roll: 0 };
+      commitPose(next);
       const decay = Math.exp(-dt * 3.4);
       vAz *= decay;
       vAlt *= decay;
@@ -313,9 +351,8 @@ export default function SkyScreen() {
   };
   const movePan = (tx: number, ty: number) => {
     const degPerPx = vfovRef.current / height;
-    const next = { az: wrap360(start.current.az - tx * degPerPx), alt: clamp(start.current.alt + ty * degPerPx, -30, 85), roll: 0 };
-    poseRef.current = next;
-    setPose(next);
+    const next = { az: wrap360(start.current.az - tx * degPerPx), alt: clamp(start.current.alt + ty * degPerPx, minAlt.current, 85), roll: 0 };
+    commitPose(next);
   };
   const beginPinch = () => {
     stopMotion();
@@ -349,58 +386,40 @@ export default function SkyScreen() {
     },
   });
 
-  const fov = canZoom ? vfov : CAMERA_VFOV;
-  const vecProject = useMemo(() => makeVecProjector(pose, width, height, fov), [pose, width, height, fov]);
-  const project: Projector = useMemo(
-    () => (az: number, alt: number) => vecProject(Math.sin(az * D2R) * Math.cos(alt * D2R), Math.cos(az * D2R) * Math.cos(alt * D2R), Math.sin(alt * D2R)),
-    [vecProject],
-  );
+  const currentFov = () => (canZoom ? vfovRef.current : CAMERA_VFOV);
+  /** Projector for the latest pose, for one-off work like taps (the sky layer keeps its own). */
+  const projectorNow = () => makeVecProjector(poseRef.current, width, height, currentFov());
 
   // ---- planetarium sky for the selected instant ----
   const frame = useMemo(() => (planetarium ? horizonFrame(place, new Date(tMs)) : null), [planetarium, place, tMs]);
   const trailIdx = useMemo(() => trailStars(), []);
   const trails = useMemo(() => (frame && P.trails ? starTrails(place, frame.time, trailIdx) : null), [frame, P.trails, place, trailIdx]);
-  const visibility: SkyVisibility = useMemo(() => {
-    const dark = P.atmosphere ? clamp((-selected.sun.alt - 2) / 13, 0, 1) : 1;
-    const base = fov > 95 ? 4.4 : fov > 60 ? 4.8 : 5.0;
-    return { dark, magLimit: P.atmosphere ? lerp(-1.2, base, (-selected.sun.alt + 2) / 17) : base };
-  }, [P.atmosphere, selected.sun.alt, fov]);
   const groundOn = mode === 'virtual' ? !planetarium || P.ground : planetarium && !showFeed && P.ground;
-  const groundTint = groundOn ? 0.86 : planetarium && !(mode === 'camera' && showFeed) ? 0.2 : 0;
+  const groundTint = groundOn ? (planetarium ? 0.55 : 0.86) : planetarium && !(mode === 'camera' && showFeed) ? 0.2 : 0;
 
   const bodies = useMemo(
     () => ({ sun: enuFromAltAz(selected.sun.alt, selected.sun.az), moon: enuFromAltAz(selected.moon.alt, selected.moon.az) }),
     [selected],
   );
 
-  // Constellation under the crosshair (IAU boundaries), with a tick as you cross into a new one.
-  // Rounded to half a degree so the boundary lookup doesn't run on every sensor sample.
-  const centreAz = Math.round(pose.az * 2) / 2;
-  const centreAlt = Math.round(pose.alt * 2) / 2;
-  const crosshairConst = useMemo(() => {
-    if (!frame) return null;
-    const [e, n, u] = enuFromAltAz(centreAlt, centreAz);
-    return constellationAt(frame, e, n, u);
-  }, [frame, centreAz, centreAlt]);
+  // Constellation under the crosshair, reported by the sky layer only when it changes,
+  // with a tick as you cross into a new one.
+  const [crosshairConst, setCrosshairConst] = useState<string | null>(null);
   const lastConst = useRef<string | null>(null);
   useEffect(() => {
     if (crosshairConst && lastConst.current && crosshairConst !== lastConst.current && !playing) haptic.tick();
     lastConst.current = crosshairConst;
   }, [crosshairConst, playing]);
   const cat = catalog();
-  const crosshairName = crosshairConst ? cat.constellationById.get(crosshairConst)?.name : null;
-  const highlight = P.lines ? (selectedId && kindOf(selectedId) === 'constellation' ? selectedId.slice(6) : crosshairConst) : null;
+  const crosshairName = planetarium && crosshairConst ? cat.constellationById.get(crosshairConst)?.name : null;
 
-  // Selected target: screen position, lock-on and the info card.
+  // Selected target: where it is in the sky, and whether the sky layer has it in the crosshair.
   const target = useMemo(() => {
     if (!frame || !selectedId) return null;
     const v = targetEnu(frame, selectedId, bodies);
-    if (!v) return null;
-    const pos = altAz(v[0], v[1], v[2]);
-    const s = vecProject(v[0], v[1], v[2]);
-    const visible = Number.isFinite(s.x) && s.x > 0 && s.x < width && s.y > 0 && s.y < height;
-    return { ...pos, x: s.x, y: s.y, visible, locked: visible && Math.hypot(s.x - width / 2, s.y - height / 2) < LOCK_PX };
-  }, [frame, selectedId, bodies, vecProject, width, height]);
+    return v ? altAz(v[0], v[1], v[2]) : null;
+  }, [frame, selectedId, bodies]);
+  const [locked, setLocked] = useState(false);
   const info = useMemo(
     () => (frame && selectedId ? describeTarget(frame, selectedId, { moonIllum: selected.phase.illumination, moonDistKm: selected.phase.distanceKm }) : null),
     [frame, selectedId, selected.phase],
@@ -411,12 +430,12 @@ export default function SkyScreen() {
     const at = targetEqjAt(selectedId, place);
     return at ? planViewing(place, new Date(planBucket * 10 * MIN_MS), at) : null;
   }, [selectedId, planetarium, place, planBucket]);
+  const isLocked = locked && !!target;
   const wasLocked = useRef(false);
   useEffect(() => {
-    const locked = !!target?.locked;
-    if (locked && !wasLocked.current) haptic.success();
-    wasLocked.current = locked;
-  }, [target?.locked]);
+    if (isLocked && !wasLocked.current) haptic.success();
+    wasLocked.current = isLocked;
+  }, [isLocked]);
 
   const pointAt = (id: TargetId, after?: { alt: number; az: number }) => {
     if (!frame) return;
@@ -426,14 +445,27 @@ export default function SkyScreen() {
     if (mode !== 'virtual') return; // the edge arrow guides the phone instead
     const kind = kindOf(id);
     const fovTarget = kind === 'constellation' ? 70 : kind === 'dso' ? 48 : vfovRef.current > 85 ? 65 : undefined;
-    // Below an opaque ground, look at the stretch of horizon it is under instead.
-    glideTo(az, groundOn && alt < 0 ? 12 : alt, fovTarget);
+    glideTo(az, alt, fovTarget);
   };
 
   const select = (id: TargetId | null, glide = false) => {
     setSelectedId(id);
     if (id && glide) pointAt(id);
   };
+
+  // "Ver no céu" from an object's page: select it and point there.
+  const onRequest = useEffectEvent((id: TargetId) => {
+    if (!frame) return;
+    useSkyIntent.setState({ target: null });
+    select(id, true);
+  });
+  useEffect(
+    () =>
+      useSkyIntent.subscribe((st) => {
+        if (st.target) onRequest(st.target);
+      }),
+    [],
+  );
 
   // After jumping to the best time, glide again: the target has moved.
   const pendingGlide = useRef(false);
@@ -452,16 +484,18 @@ export default function SkyScreen() {
     setShowLayers(false);
     if (on) {
       setHint(mode === 'camera' ? 'Aponte para o céu e toque numa estrela para saber o que é.' : 'Arraste o céu, faça pinça e toque numa estrela para saber o que é.');
-      if (mode === 'virtual' && pose.alt < 20) glideTo(pose.az, 35);
+      if (mode === 'virtual' && poseRef.current.alt < 20) glideTo(poseRef.current.az, 35);
     } else setPlaying(false);
   };
 
   // ---- tap: calibrate, or pick what is under the finger ----
   const hitTest = (x: number, y: number) => {
     if (!frame) return;
+    const fov = currentFov();
+    const vecProject = makeVecProjector(poseRef.current, width, height, fov);
+    const { magLimit } = skyVisibility(P.atmosphere, selected.sun.alt, fov);
     let best: { id: TargetId; score: number } | null = null;
     const consider = (id: TargetId, e: number, n: number, u: number, radiusPx: number, bonus: number) => {
-      if (groundOn && u < -0.01) return;
       const s = vecProject(e, n, u);
       if (!Number.isFinite(s.x)) return;
       const d = Math.hypot(s.x - x, s.y - y);
@@ -478,7 +512,7 @@ export default function SkyScreen() {
       const pole = frame.latitude < 0 ? frame.south : frame.north;
       consider('pole', pole[0], pole[1], pole[2], 36, 6);
     }
-    for (let i = 0; i < cat.count && cat.mag[i] <= visibility.magLimit; i++) {
+    for (let i = 0; i < cat.count && cat.mag[i] <= magLimit; i++) {
       const bonus = (4 - cat.mag[i]) * 2.5 + (cat.namedByIndex.has(i) ? 6 : 0);
       consider(`star:${i}`, frame.stars[i * 3], frame.stars[i * 3 + 1], frame.stars[i * 3 + 2], 30, bonus);
     }
@@ -491,12 +525,10 @@ export default function SkyScreen() {
     }
     // Empty sky: select the constellation that region belongs to.
     if (P.lines) {
-      const [e, n, u] = makeUnprojector(pose, width, height, fov)(x, y);
-      if (!(groundOn && u < 0)) {
-        haptic.tick();
-        select(`const:${constellationAt(frame, e, n, u)}`);
-        return;
-      }
+      const [e, n, u] = makeUnprojector(poseRef.current, width, height, fov)(x, y);
+      haptic.tick();
+      select(`const:${constellationAt(frame, e, n, u)}`);
+      return;
     }
     setSelectedId(null);
   };
@@ -504,7 +536,8 @@ export default function SkyScreen() {
   const onTap = (x: number, y: number) => {
     if (calibrating) {
       // Treat the tapped point as where the sun really is: shift the pose so the sun projects there.
-      const degPerPx = fov / height;
+      const degPerPx = currentFov() / height;
+      const sunScreen = projectorNow()(bodies.sun[0], bodies.sun[1], bodies.sun[2]);
       const dx = x - sunScreen.x;
       const dy = y - sunScreen.y;
       offset.current = { az: offset.current.az - dx * degPerPx, alt: offset.current.alt + dy * degPerPx };
@@ -524,71 +557,6 @@ export default function SkyScreen() {
   });
   const gestures = useSimultaneousGestures(pan, pinch, tap);
 
-  // ---- geometry ----
-  const geo = useMemo(() => {
-    const horizonPts = Array.from({ length: 73 }, (_, i) => ({ az: i * 5, alt: 0 }));
-    const horizon = polylines(horizonPts, project, width, height).sort((a, b) => b.length - a.length);
-    const ring = (alt: number) => polylines(Array.from({ length: 73 }, (_, i) => ({ az: i * 5, alt })), project, width, height);
-    const above = (pts: { az: number; alt: number }[]) => pts.map((p) => (p.alt >= -1 ? p : { ...p, alt: NaN }));
-    const below = (pts: { az: number; alt: number }[]) => pts.map((p) => (p.alt <= 1 ? p : { ...p, alt: NaN }));
-    const split = (pts: { az: number; alt: number }[]) => {
-      // keep NaN gaps as breaks
-      const segs: { az: number; alt: number }[][] = [[]];
-      for (const p of pts) {
-        if (Number.isNaN(p.alt)) segs.push([]);
-        else segs[segs.length - 1].push(p);
-      }
-      return segs.filter((s) => s.length > 1).flatMap((s) => polylines(s, project, width, height));
-    };
-    const hourMarks = (pts: { az: number; alt: number }[]) =>
-      Array.from({ length: 24 }, (_, h) => {
-        const p = pts[(h * 60) / PATH_STEP_MIN];
-        if (!p || p.alt < -2) return null;
-        const s = project(p.az, p.alt);
-        if (!Number.isFinite(s.x) || s.x < -40 || s.x > width + 40 || s.y < -40 || s.y > height + 40) return null;
-        return { h, x: s.x, y: s.y };
-      }).filter(Boolean) as { h: number; x: number; y: number }[];
-    const cardinals = CARDINALS.map(([l, az]) => {
-      const s = project(az, 0);
-      return Number.isFinite(s.x) ? { l, x: s.x, y: s.y } : null;
-    }).filter(Boolean) as { l: string; x: number; y: number }[];
-    const ticks = Array.from({ length: 24 }, (_, i) => i * 15)
-      .filter((az) => az % 45)
-      .map((az) => {
-        const a = project(az, 0);
-        const b = project(az, 1.2);
-        return Number.isFinite(a.x) && Number.isFinite(b.x) ? { az, a, b } : null;
-      })
-      .filter(Boolean) as { az: number; a: { x: number; y: number }; b: { x: number; y: number } }[];
-    return {
-      horizon,
-      grid: layers.grid ? [...ring(30), ...ring(60)] : [],
-      sunAbove: split(above(data.sun)),
-      sunBelow: split(below(data.sun)),
-      sunHours: hourMarks(data.sun),
-      moonAbove: split(above(data.moon)),
-      solstices: layers.solstices ? data.solstices.map((p) => split(above(p))) : [],
-      cardinals,
-      ticks,
-    };
-  }, [project, width, height, data, layers.grid, layers.solstices]);
-
-  const sunScreen = project(selected.sun.az, selected.sun.alt);
-  const moonScreen = project(selected.moon.az, selected.moon.alt);
-  const onScreen = (s: { x: number; y: number }) => Number.isFinite(s.x) && s.x > 0 && s.x < width && s.y > 0 && s.y < height;
-  const hiddenByGround = (alt: number) => planetarium && groundOn && alt < -0.5;
-  const sunVisible = layers.sun && onScreen(sunScreen) && !hiddenByGround(selected.sun.alt);
-  const moonVisible = layers.moon && onScreen(moonScreen) && !hiddenByGround(selected.moon.alt);
-  const sunEdge = layers.sun && !sunVisible && !planetarium ? edgeIndicator(pose, selected.sun.az, selected.sun.alt, width, height) : null;
-  const targetEdge = target && !target.visible ? edgeIndicator(pose, target.az, target.alt, width, height) : null;
-
-  const lastLocked = useRef(false);
-  useEffect(() => {
-    const locked = sunVisible && Math.abs(sunScreen.x - width / 2) < 40 && Math.abs(sunScreen.y - height / 2) < 40;
-    if (locked && !lastLocked.current && !planetarium) haptic.light();
-    lastLocked.current = locked;
-  }, [sunVisible, sunScreen.x, sunScreen.y, width, height, planetarium]);
-
   const enableCamera = async () => {
     // Pointing the planetarium only needs the motion sensors.
     if (planetarium && !P.cameraFeed && sensorsOk) {
@@ -606,7 +574,6 @@ export default function SkyScreen() {
   const cameraBlocked = mode === 'camera' && showFeed && !cameraPerm?.granted;
   const planetsUp = frame ? frame.planets.filter((p) => p.alt > 0 && p.mag < 6.5).length : 0;
   const timeLabel = formatMinuteOfDay(minute, use24h);
-  const ground = groundTint > 0;
   const dayLabel = dayShift === 0 ? null : dayShift === 1 ? 'amanhã' : dayShift === -1 ? 'ontem' : formatDate(dayStart, tz, 'compact');
 
   const findRows: FindRow[] = useMemo(() => {
@@ -631,6 +598,19 @@ export default function SkyScreen() {
     });
   }, [finding, frame, bodies, place.latitude, cat]);
 
+  // The search sheet covers the sky: stop redrawing it until the sheet closes.
+  useEffect(() => {
+    frozen.current = finding;
+    if (!finding) publishView();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finding]);
+  const closeFind = () => setFinding(false);
+  const pickFound = (id: TargetId) => {
+    setFinding(false);
+    haptic.light();
+    select(id, true);
+  };
+
   const background =
     mode === 'camera' && showFeed && cameraPerm?.granted && focused ? (
       <CameraView style={StyleSheet.absoluteFill} facing="back" />
@@ -649,113 +629,43 @@ export default function SkyScreen() {
 
       <GestureDetector gesture={gestures}>
         <View style={StyleSheet.absoluteFill}>
-          <Svg width={width} height={height} pointerEvents="none">
-            {frame ? (
-              <PlanetariumSky
-                frame={frame}
-                trails={trails}
-                trailIndices={trailIdx}
-                project={vecProject}
-                width={width}
-                height={height}
-                fov={fov}
-                layers={P}
-                visibility={visibility}
-                cull={groundOn}
-                highlight={highlight}
-                selected={selectedId}
-              />
-            ) : null}
-            {ground && geo.horizon.length ? (
-              <Path d={`${geo.horizon[0]} L${width + 400},${height + 400} L-400,${height + 400} Z`} fill={planetarium ? '#03050F' : 'rgb(4,7,20)'} fillOpacity={groundTint} />
-            ) : null}
-            {geo.grid.map((d, i) => (
-              <Path key={`g${i}`} d={d} stroke="#FFFFFF" strokeOpacity={0.12} strokeWidth={1} strokeDasharray="2 6" fill="none" />
-            ))}
-            {geo.horizon.map((d, i) => (
-              <Path key={`h${i}`} d={d} stroke="#FFFFFF" strokeOpacity={0.75} strokeWidth={1.5} fill="none" />
-            ))}
-            {geo.ticks.map((t) => (
-              <Line key={t.az} x1={t.a.x} y1={t.a.y} x2={t.b.x} y2={t.b.y} stroke="#FFFFFF" strokeOpacity={0.5} strokeWidth={1} />
-            ))}
-            {geo.cardinals.map((c) => (
-              <G key={c.l}>
-                <Circle cx={c.x} cy={c.y} r={3} fill={c.l === 'N' ? colors.accent : '#FFFFFF'} />
-                <SvgText x={c.x} y={c.y + 20} fontSize={c.l.length === 1 ? 15 : 12} fontWeight={weight.bold} fill={c.l === 'N' ? colors.accent : '#FFFFFF'} textAnchor="middle">
-                  {c.l}
-                </SvgText>
-              </G>
-            ))}
-            {geo.solstices.map((segs, i) =>
-              segs.map((d, j) => (
-                <Path key={`s${i}${j}`} d={d} stroke={i === 0 ? '#FF8A6B' : '#8FB4FF'} strokeOpacity={0.7} strokeWidth={1.5} strokeDasharray="6 6" fill="none" />
-              )),
-            )}
-            {layers.moon && !planetarium
-              ? geo.moonAbove.map((d, i) => <Path key={`m${i}`} d={d} stroke={colors.moon} strokeOpacity={0.8} strokeWidth={2} strokeDasharray="3 7" strokeLinecap="round" fill="none" />)
-              : null}
-            {layers.sun && !planetarium ? (
-              <>
-                {geo.sunBelow.map((d, i) => (
-                  <Path key={`sb${i}`} d={d} stroke="#FFFFFF" strokeOpacity={0.25} strokeWidth={1.5} strokeDasharray="2 6" fill="none" />
-                ))}
-                {geo.sunAbove.map((d, i) => (
-                  <G key={`sa${i}`}>
-                    <Path d={d} stroke={colors.accent} strokeOpacity={0.35} strokeWidth={8} fill="none" strokeLinecap="round" />
-                    <Path d={d} stroke={colors.accent} strokeWidth={2.5} fill="none" strokeLinecap="round" />
-                  </G>
-                ))}
-                {geo.sunHours.map((h) => (
-                  <G key={`hr${h.h}`}>
-                    <Circle cx={h.x} cy={h.y} r={4} fill="#FFFFFF" stroke={colors.accent} strokeWidth={2} />
-                    <SvgText x={h.x + 9} y={h.y - 8} fontSize={11} fontWeight={weight.bold} fill="#FFFFFF">
-                      {use24h ? `${h.h}h` : `${h.h % 12 || 12}${h.h < 12 ? 'a' : 'p'}`}
-                    </SvgText>
-                  </G>
-                ))}
-              </>
-            ) : null}
-            {target?.visible && info ? <SelectionRing x={target.x} y={target.y} color={info.color} locked={target.locked} /> : null}
-            {calibrating ? <Circle cx={width / 2} cy={height / 2} r={26} stroke="#FFFFFF" strokeWidth={1.5} strokeDasharray="4 4" fill="none" /> : null}
-            <Line x1={width / 2 - 10} y1={height / 2} x2={width / 2 + 10} y2={height / 2} stroke="#FFFFFF" strokeOpacity={0.7} />
-            <Line x1={width / 2} y1={height / 2 - 10} x2={width / 2} y2={height / 2 + 10} stroke="#FFFFFF" strokeOpacity={0.7} />
-          </Svg>
-          {moonVisible ? (
-            <View pointerEvents="none" style={[styles.body, { left: moonScreen.x - 22, top: moonScreen.y - 22 }]}>
-              <MoonGlyph size={44} angle={selected.phase.angle} southern={place.latitude < 0} />
-            </View>
-          ) : null}
-          {sunVisible ? (
-            <View pointerEvents="none" style={[styles.body, { left: sunScreen.x - 30, top: sunScreen.y - 30 }]}>
-              <SunGlyph size={60} />
-              <View style={styles.bodyLabel}>
-                <Text variant="caption">
-                  {timeLabel} · {formatDegrees(selected.sun.alt)}
-                </Text>
-              </View>
-            </View>
-          ) : null}
-          {sunEdge ? (
-            <View pointerEvents="none" style={[styles.edge, { left: sunEdge.x - 26, top: sunEdge.y - 26 }]}>
-              <View style={{ transform: [{ rotate: `${sunEdge.rotation}deg` }] }}>
-                <Icon name="arrowUp" size={18} color={colors.textOnAccent} weight="heavy" />
-              </View>
-            </View>
-          ) : null}
-          {targetEdge && info ? (
-            <View pointerEvents="none" style={[styles.targetEdge, { left: targetEdge.x - 22, top: targetEdge.y - 22 }]}>
-              <View style={[styles.targetArrow, { transform: [{ rotate: `${targetEdge.rotation}deg` }] }]}>
-                <Icon name="arrowUp" size={16} color={colors.onPrimary} weight="heavy" />
-              </View>
-              <View style={styles.targetTag}>
-                <Text variant="caption" numberOfLines={1}>
-                  {info.title} · {Math.round(targetEdge.distance)}°
-                </Text>
-              </View>
-            </View>
-          ) : null}
+        <SkyStage
+          view={view}
+          width={width}
+          height={height}
+          canZoom={canZoom}
+          planetarium={planetarium}
+          mode={mode}
+          frame={frame}
+          trails={trails}
+          trailIdx={trailIdx}
+          prefs={P}
+          layers={layers}
+          data={data}
+          selected={selected}
+          bodies={bodies}
+          southern={place.latitude < 0}
+          selectedId={selectedId}
+          targetTitle={info?.title ?? null}
+          targetColor={info?.color ?? null}
+          groundOn={groundOn}
+          groundTint={groundTint}
+          calibrating={calibrating}
+          use24h={use24h}
+          timeLabel={timeLabel}
+          onCrosshair={setCrosshairConst}
+          onLocked={setLocked}
+        />
         </View>
       </GestureDetector>
+
+      {/* Scrims keep the controls legible over a busy sky. */}
+      {planetarium ? (
+        <>
+          <LinearGradient pointerEvents="none" colors={['rgba(2,4,14,0.6)', 'rgba(2,4,14,0)']} style={[styles.scrimTop, { height: insets.top + 120 }]} />
+          <LinearGradient pointerEvents="none" colors={['rgba(2,4,14,0)', 'rgba(2,4,14,0.72)']} style={[styles.scrimBottom, { height: insets.bottom + TAB_BAR_HEIGHT + 190 }]} />
+        </>
+      ) : null}
 
       {/* Top HUD */}
       <View style={[styles.hudTop, { paddingTop: insets.top + space.xs }]} pointerEvents="box-none">
@@ -778,29 +688,13 @@ export default function SkyScreen() {
           </View>
           <HudButton icon="layers" label="Camadas" onPress={() => setShowLayers((v) => !v)} active={showLayers} />
         </View>
-        <View style={styles.headingPill}>
-          {planetarium && crosshairName ? (
-            <Animated.View key={crosshairName} entering={FadeIn.duration(220)}>
-              <Text variant="headline" align="center">
-                {crosshairName}
-              </Text>
-            </Animated.View>
-          ) : (
-            <Text variant="headline" style={{ fontVariant: ['tabular-nums'] }}>
-              {Math.round(pose.az)}° {compassPoint(pose.az)}
-            </Text>
-          )}
-          <Text variant="caption" color={colors.textSecondary} style={{ fontVariant: ['tabular-nums'] }}>
-            {planetarium && crosshairName ? `${Math.round(pose.az)}° ${compassPoint(pose.az)} · ` : ''}
-            {pose.alt >= 0 ? '↑' : '↓'} {formatDegrees(Math.abs(pose.alt))}
-          </Text>
-        </View>
+        <Heading view={view} constellation={crosshairName ?? null} />
         {showLayers ? (
           <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(120)} style={styles.layersPanel}>
             {planetarium ? (
               <>
-                <Text variant="caption" color={colors.textSecondary} style={styles.layersHead}>
-                  NO CÉU
+                <Text variant="footnote" color={colors.textSecondary} style={styles.layersHead}>
+                  No céu
                 </Text>
                 <View style={styles.layers}>
                   <LayerToggle icon="constellation" label="Constelações" on={P.lines} onPress={() => setPrefs({ lines: !P.lines })} />
@@ -816,11 +710,11 @@ export default function SkyScreen() {
                   <LayerToggle icon="sun" label="Sol" on={layers.sun} onPress={() => setLayers((l) => ({ ...l, sun: !l.sun }))} />
                   <LayerToggle icon="moon" label="Lua" on={layers.moon} onPress={() => setLayers((l) => ({ ...l, moon: !l.moon }))} />
                 </View>
-                <Text variant="caption" color={colors.textSecondary} style={styles.layersHead}>
-                  VISUAL
+                <Text variant="footnote" color={colors.textSecondary} style={styles.layersHead}>
+                  Visual
                 </Text>
                 <View style={styles.layers}>
-                  <LayerToggle icon="mountain" label="Chão" on={P.ground} onPress={() => setPrefs({ ground: !P.ground })} />
+                  <LayerToggle icon="mountain" label="Chão translúcido" on={P.ground} onPress={() => setPrefs({ ground: !P.ground })} />
                   <LayerToggle icon="atmosphere" label="Atmosfera" on={P.atmosphere} onPress={() => setPrefs({ atmosphere: !P.atmosphere })} />
                   {mode === 'camera' ? <LayerToggle icon="camera" label="Câmera ao fundo" on={P.cameraFeed} onPress={() => setPrefs({ cameraFeed: !P.cameraFeed })} /> : null}
                   <LayerToggle icon="nightVision" label="Visão noturna" on={P.nightVision} onPress={() => setPrefs({ nightVision: !P.nightVision })} />
@@ -869,7 +763,7 @@ export default function SkyScreen() {
 
       {/* Bottom HUD */}
       <View style={[styles.hudBottom, { paddingBottom: insets.bottom + TAB_BAR_HEIGHT - space.md }]} pointerEvents="box-none">
-        {planetarium && info && target ? (
+        {planetarium && info && target && selectedId ? (
           <TargetCard
             key={selectedId}
             info={info}
@@ -878,8 +772,11 @@ export default function SkyScreen() {
             plan={plan}
             tz={tz}
             use24h={use24h}
-            locked={target.locked}
+            locked={isLocked}
             onClose={() => setSelectedId(null)}
+            onDetails={() => router.push({ pathname: '/object/[id]', params: { id: selectedId } })}
+            favorite={favorites.includes(selectedId)}
+            onToggleFavorite={() => toggleFavorite(selectedId)}
             onBestTime={(t) => {
               haptic.medium();
               pendingGlide.current = true;
@@ -889,9 +786,8 @@ export default function SkyScreen() {
         ) : planetarium && frame ? (
           <View style={styles.infoRow}>
             <InfoChip icon={selected.sun.alt > -6 ? 'sunHorizon' : 'stars'} label={LIGHT_PHASE_LABEL[lightPhase(selected.sun.alt)]} />
-            <InfoChip icon="moon" label={selected.moon.alt > 0 ? `Lua ${Math.round(selected.phase.illumination * 100)}%` : 'Sem lua'} />
             <PressableScale onPress={() => setFinding(true)} hapticOnPress="soft" accessibilityRole="button" accessibilityLabel="Planetas visíveis">
-              <InfoChip icon="orbit" label={planetsUp === 1 ? '1 planeta' : `${planetsUp} planetas`} highlight={planetsUp > 0} />
+              <InfoChip icon="orbit" label={planetsUp === 1 ? '1 planeta visível' : `${planetsUp} planetas visíveis`} highlight={planetsUp > 0} />
             </PressableScale>
           </View>
         ) : (
@@ -911,48 +807,58 @@ export default function SkyScreen() {
           use24h={use24h}
           sunrise={data.day.sunrise ? wallClock(data.day.sunrise, tz).minuteOfDay : null}
           sunset={data.day.sunset ? wallClock(data.day.sunset, tz).minuteOfDay : null}
+          accessory={
+            planetarium ? (
+              <>
+                {playing ? (
+                  <PressableScale onPress={() => setSpeed((s) => (s + 1) % SPEEDS.length)} hapticOnPress="tick" style={styles.speed} accessibilityRole="button" accessibilityLabel="Velocidade">
+                    <Text variant="footnote" style={{ fontVariant: ['tabular-nums'], fontWeight: '600' }}>
+                      {SPEEDS[speed].label}
+                    </Text>
+                  </PressableScale>
+                ) : null}
+                <PressableScale
+                  onPress={() => {
+                    setLive(false);
+                    setPlaying((p) => !p);
+                  }}
+                  hapticOnPress="soft"
+                  accessibilityRole="button"
+                  accessibilityLabel={playing ? 'Pausar' : 'Acelerar o tempo'}
+                  style={[styles.roundAction, playing && { backgroundColor: colors.primary }]}>
+                  <Icon name={playing ? 'pause' : 'play'} size={14} color={playing ? colors.onPrimary : colors.text} />
+                </PressableScale>
+                {mode === 'camera' && showFeed && !playing ? (
+                  <PressableScale
+                    onPress={() => setCalibrating((c) => !c)}
+                    hapticOnPress="soft"
+                    style={[styles.roundAction, calibrating && { backgroundColor: colors.primary }]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Calibrar com o sol">
+                    <Icon name="viewfinder" size={15} color={calibrating ? colors.onPrimary : colors.text} />
+                  </PressableScale>
+                ) : null}
+                <PressableScale onPress={() => setFinding(true)} hapticOnPress="soft" style={styles.roundAction} accessibilityRole="button" accessibilityLabel="Encontrar no céu">
+                  <Icon name="search" size={15} color={colors.text} />
+                </PressableScale>
+              </>
+            ) : null
+          }
         />
-        <View style={styles.bottomActions}>
-          {planetarium ? (
-            <>
-              <PressableScale onPress={() => setFinding(true)} hapticOnPress="soft" style={styles.smallAction} accessibilityRole="button">
-                <Icon name="search" size={14} color={colors.text} />
-                <Text variant="subhead">Encontrar</Text>
+        {!planetarium ? (
+          <View style={styles.bottomActions}>
+            {mode === 'camera' ? (
+              <PressableScale onPress={() => setCalibrating((c) => !c)} hapticOnPress="soft" style={styles.smallAction}>
+                <Icon name="viewfinder" size={14} color={colors.text} />
+                <Text variant="subhead">{calibrating ? 'Cancelar' : 'Calibrar com o sol'}</Text>
               </PressableScale>
-              <PressableScale
-                onPress={() => {
-                  setLive(false);
-                  setPlaying((p) => !p);
-                }}
-                hapticOnPress="soft"
-                accessibilityRole="button"
-                accessibilityLabel={playing ? 'Pausar' : 'Acelerar o tempo'}
-                style={[styles.roundAction, playing && { backgroundColor: colors.primary }]}>
-                <Icon name={playing ? 'pause' : 'play'} size={15} color={playing ? colors.onPrimary : colors.text} />
-              </PressableScale>
-              {playing ? (
-                <PressableScale onPress={() => setSpeed((s) => (s + 1) % SPEEDS.length)} hapticOnPress="tick" style={styles.smallAction} accessibilityRole="button" accessibilityLabel="Velocidade">
-                  <Text variant="subhead" style={{ fontVariant: ['tabular-nums'] }}>
-                    {SPEEDS[speed].label}
-                  </Text>
-                </PressableScale>
-              ) : mode === 'camera' && showFeed ? (
-                <PressableScale onPress={() => setCalibrating((c) => !c)} hapticOnPress="soft" style={styles.roundAction} accessibilityRole="button" accessibilityLabel="Calibrar com o sol">
-                  <Icon name="viewfinder" size={15} color={colors.text} />
-                </PressableScale>
-              ) : null}
-            </>
-          ) : mode === 'camera' ? (
-            <PressableScale onPress={() => setCalibrating((c) => !c)} hapticOnPress="soft" style={styles.smallAction}>
-              <Icon name="viewfinder" size={14} color={colors.text} />
-              <Text variant="subhead">{calibrating ? 'Cancelar' : 'Calibrar com o sol'}</Text>
-            </PressableScale>
-          ) : (
-            <Text variant="footnote" color={colors.textSecondary}>
-              Arraste para olhar em volta · pinça para zoom
-            </Text>
-          )}
-        </View>
+            ) : (
+              <Text variant="footnote" color={colors.textSecondary}>
+                Arraste para olhar em volta · pinça para zoom
+              </Text>
+            )}
+          </View>
+        ) : null}
       </View>
 
       {cameraBlocked ? (
@@ -968,7 +874,7 @@ export default function SkyScreen() {
           <Button label="Usar céu virtual" variant="quiet" onPress={() => setMode('virtual')} />
         </View>
       ) : null}
-      {sensorsOk === false && mode === 'virtual' && showSensorNote ? (
+      {sensorsOk === false && mode === 'virtual' && showSensorNote && !hint ? (
         <Animated.View entering={FadeIn.duration(200)} exiting={FadeOut.duration(400)} style={[styles.sensorNote, { top: insets.top + 150 }]} pointerEvents="none">
           <Text variant="caption" color={colors.textSecondary} align="center">
             Sensores de movimento indisponíveis neste aparelho. Mostrando o céu virtual.
@@ -979,12 +885,9 @@ export default function SkyScreen() {
       {finding && frame ? (
         <FindSheet
           rows={findRows}
-          onClose={() => setFinding(false)}
-          onPick={(id) => {
-            setFinding(false);
-            haptic.light();
-            select(id, true);
-          }}
+          favorites={favorites}
+          onClose={closeFind}
+          onPick={pickFound}
         />
       ) : null}
 
@@ -993,6 +896,331 @@ export default function SkyScreen() {
     </View>
   );
 }
+
+type ViewState = { pose: Pose; vfov: number };
+type ViewStore = { get: () => ViewState; set: (v: ViewState) => void; subscribe: (fn: () => void) => () => void };
+
+function createViewStore(initial: ViewState): ViewStore {
+  let value = initial;
+  const subs = new Set<() => void>();
+  return {
+    get: () => value,
+    set: (v) => {
+      value = v;
+      subs.forEach((fn) => fn());
+    },
+    subscribe: (fn) => {
+      subs.add(fn);
+      return () => subs.delete(fn);
+    },
+  };
+}
+
+function skyVisibility(atmosphere: boolean, sunAlt: number, fov: number): SkyVisibility {
+  const dark = atmosphere ? clamp((-sunAlt - 2) / 13, 0, 1) : 1;
+  const base = fov > 95 ? 4.4 : fov > 60 ? 4.8 : 5.0;
+  return { dark, magLimit: atmosphere ? lerp(-1.2, base, (-sunAlt + 2) / 17) : base };
+}
+
+/** Heading readout: re-renders only when the rounded numbers change, not on every sample. */
+const Heading = memo(function Heading({ view, constellation }: { view: ViewStore; constellation: string | null }) {
+  const key = useSyncExternalStore(view.subscribe, () => {
+    const { az, alt } = view.get().pose;
+    return `${Math.round(az) % 360}|${Math.round(alt)}`;
+  });
+  const [azS, altS] = key.split('|');
+  const az = Number(azS);
+  const alt = Number(altS);
+  const heading = `${az}° ${compassPoint(az)}`;
+  return (
+    <View style={styles.headingPill}>
+      {constellation ? (
+        <Animated.View key={constellation} entering={FadeIn.duration(220)}>
+          <Text variant="headline" align="center">
+            {constellation}
+          </Text>
+        </Animated.View>
+      ) : (
+        <Text variant="headline" style={{ fontVariant: ['tabular-nums'] }}>
+          {heading}
+        </Text>
+      )}
+      <Text variant="caption" color={colors.textSecondary} style={{ fontVariant: ['tabular-nums'] }}>
+        {constellation ? `${heading} · ` : ''}
+        {alt >= 0 ? `↑ ${formatDegrees(alt)}` : `${formatDegrees(-alt)} abaixo do horizonte`}
+      </Text>
+    </View>
+  );
+});
+
+type SkyStageProps = {
+  view: ViewStore;
+  width: number;
+  height: number;
+  canZoom: boolean;
+  planetarium: boolean;
+  mode: Mode;
+  frame: HorizonFrame | null;
+  trails: Float64Array[] | null;
+  trailIdx: number[];
+  prefs: PlanetariumPrefs;
+  layers: Layers;
+  data: { sun: AltAz[]; moon: AltAz[]; solstices: AltAz[][] };
+  selected: { sun: { alt: number; az: number }; moon: { alt: number; az: number }; phase: { angle: number } };
+  bodies: { sun: ArrayLike<number>; moon: ArrayLike<number> };
+  southern: boolean;
+  selectedId: TargetId | null;
+  targetTitle: string | null;
+  targetColor: string | null;
+  groundOn: boolean;
+  groundTint: number;
+  calibrating: boolean;
+  use24h: boolean;
+  timeLabel: string;
+  onCrosshair: (id: string | null) => void;
+  onLocked: (locked: boolean) => void;
+};
+
+type AltAz = { alt: number; az: number };
+
+/**
+ * Everything drawn in sky coordinates. It is the only part of the screen that re-renders
+ * when the view moves; it reads the pose from the view store, not from props.
+ */
+const SkyStage = memo(function SkyStage({
+  view,
+  width,
+  height,
+  canZoom,
+  planetarium,
+  mode,
+  frame,
+  trails,
+  trailIdx,
+  prefs: P,
+  layers,
+  data,
+  selected,
+  bodies,
+  southern,
+  selectedId,
+  targetTitle,
+  targetColor,
+  groundOn,
+  groundTint,
+  calibrating,
+  use24h,
+  timeLabel,
+  onCrosshair,
+  onLocked,
+}: SkyStageProps) {
+  const { pose, vfov } = useSyncExternalStore(view.subscribe, view.get);
+  const fov = canZoom ? vfov : CAMERA_VFOV;
+  const vecProject = useMemo(() => makeVecProjector(pose, width, height, fov), [pose, width, height, fov]);
+  const project: Projector = useMemo(
+    () => (az: number, alt: number) => vecProject(Math.sin(az * D2R) * Math.cos(alt * D2R), Math.cos(az * D2R) * Math.cos(alt * D2R), Math.sin(alt * D2R)),
+    [vecProject],
+  );
+  const visibility = useMemo(() => skyVisibility(P.atmosphere, selected.sun.alt, fov), [P.atmosphere, selected.sun.alt, fov]);
+
+  // Constellation under the crosshair (IAU boundaries). Rounded to half a degree so the
+  // boundary lookup doesn't run on every sensor sample.
+  const centreAz = Math.round(pose.az * 2) / 2;
+  const centreAlt = Math.round(pose.alt * 2) / 2;
+  const crosshairConst = useMemo(() => {
+    if (!frame) return null;
+    const [e, n, u] = enuFromAltAz(centreAlt, centreAz);
+    return constellationAt(frame, e, n, u);
+  }, [frame, centreAz, centreAlt]);
+  useEffect(() => onCrosshair(crosshairConst), [crosshairConst, onCrosshair]);
+  const highlight = P.lines ? (selectedId && kindOf(selectedId) === 'constellation' ? selectedId.slice(6) : crosshairConst) : null;
+
+  const onScreen = (s: { x: number; y: number }) => Number.isFinite(s.x) && s.x > 0 && s.x < width && s.y > 0 && s.y < height;
+  const target = useMemo(() => {
+    if (!frame || !selectedId) return null;
+    const v = targetEnu(frame, selectedId, bodies);
+    if (!v) return null;
+    const s = vecProject(v[0], v[1], v[2]);
+    const visible = Number.isFinite(s.x) && s.x > 0 && s.x < width && s.y > 0 && s.y < height;
+    return { ...altAz(v[0], v[1], v[2]), x: s.x, y: s.y, visible, locked: visible && Math.hypot(s.x - width / 2, s.y - height / 2) < LOCK_PX };
+  }, [frame, selectedId, bodies, vecProject, width, height]);
+  const locked = !!target?.locked;
+  useEffect(() => onLocked(locked), [locked, onLocked]);
+
+  // ---- geometry ----
+  // The sun and moon day paths are only drawn outside the planetarium.
+  const showPaths = !planetarium;
+  const geo = useMemo(() => {
+    const horizonPts = Array.from({ length: 73 }, (_, i) => ({ az: i * 5, alt: 0 }));
+    const horizon = polylines(horizonPts, project, width, height).sort((a, b) => b.length - a.length);
+    const ring = (alt: number) => polylines(Array.from({ length: 73 }, (_, i) => ({ az: i * 5, alt })), project, width, height);
+    const above = (pts: AltAz[]) => pts.map((p) => (p.alt >= -1 ? p : { ...p, alt: NaN }));
+    const below = (pts: AltAz[]) => pts.map((p) => (p.alt <= 1 ? p : { ...p, alt: NaN }));
+    const split = (pts: AltAz[]) => {
+      // keep NaN gaps as breaks
+      const segs: AltAz[][] = [[]];
+      for (const p of pts) {
+        if (Number.isNaN(p.alt)) segs.push([]);
+        else segs[segs.length - 1].push(p);
+      }
+      return segs.filter((s) => s.length > 1).flatMap((s) => polylines(s, project, width, height));
+    };
+    const hourMarks = (pts: AltAz[]) =>
+      Array.from({ length: 24 }, (_, h) => {
+        const p = pts[(h * 60) / PATH_STEP_MIN];
+        if (!p || p.alt < -2) return null;
+        const s = project(p.az, p.alt);
+        if (!Number.isFinite(s.x) || s.x < -40 || s.x > width + 40 || s.y < -40 || s.y > height + 40) return null;
+        return { h, x: s.x, y: s.y };
+      }).filter(Boolean) as { h: number; x: number; y: number }[];
+    const cardinals = CARDINALS.map(([l, az]) => {
+      const s = project(az, 0);
+      return Number.isFinite(s.x) ? { l, x: s.x, y: s.y } : null;
+    }).filter(Boolean) as { l: string; x: number; y: number }[];
+    const ticks = Array.from({ length: 24 }, (_, i) => i * 15)
+      .filter((az) => az % 45)
+      .map((az) => {
+        const a = project(az, 0);
+        const b = project(az, 1.2);
+        return Number.isFinite(a.x) && Number.isFinite(b.x) ? { az, a, b } : null;
+      })
+      .filter(Boolean) as { az: number; a: { x: number; y: number }; b: { x: number; y: number } }[];
+    return {
+      horizon,
+      grid: layers.grid ? [...ring(30), ...ring(60)] : [],
+      sunAbove: showPaths && layers.sun ? split(above(data.sun)) : [],
+      sunBelow: showPaths && layers.sun ? split(below(data.sun)) : [],
+      sunHours: showPaths && layers.sun ? hourMarks(data.sun) : [],
+      moonAbove: showPaths && layers.moon ? split(above(data.moon)) : [],
+      solstices: layers.solstices ? data.solstices.map((p) => split(above(p))) : [],
+      cardinals,
+      ticks,
+    };
+  }, [project, width, height, data, layers.grid, layers.solstices, layers.sun, layers.moon, showPaths]);
+
+  const sunScreen = project(selected.sun.az, selected.sun.alt);
+  const moonScreen = project(selected.moon.az, selected.moon.alt);
+  // In the planetarium the ground is see-through: bodies under it stay, dimmed like the stars.
+  const underGround = (alt: number) => (planetarium && groundOn && alt < -0.5 ? 0.42 : 1);
+  const sunVisible = layers.sun && onScreen(sunScreen);
+  const moonVisible = layers.moon && onScreen(moonScreen);
+  const sunEdge = layers.sun && !sunVisible && !planetarium ? edgeIndicator(pose, selected.sun.az, selected.sun.alt, width, height) : null;
+  const targetEdge = target && !target.visible ? edgeIndicator(pose, target.az, target.alt, width, height) : null;
+
+  const sunLocked = sunVisible && Math.abs(sunScreen.x - width / 2) < 40 && Math.abs(sunScreen.y - height / 2) < 40;
+  const lastLocked = useRef(false);
+  useEffect(() => {
+    if (sunLocked && !lastLocked.current && !planetarium) haptic.light();
+    lastLocked.current = sunLocked;
+  }, [sunLocked, planetarium]);
+
+  const ground = groundTint > 0;
+  return (
+    <>
+      <Svg width={width} height={height} pointerEvents="none">
+        {frame ? (
+          <PlanetariumSky
+            frame={frame}
+            trails={trails}
+            trailIndices={trailIdx}
+            project={vecProject}
+            width={width}
+            height={height}
+            fov={fov}
+            layers={P}
+            visibility={visibility}
+            cull={false}
+            highlight={highlight}
+            selected={selectedId}
+          />
+        ) : null}
+        {ground && geo.horizon.length ? (
+          <Path d={`${geo.horizon[0]} L${width + 400},${height + 400} L-400,${height + 400} Z`} fill={planetarium ? '#03050F' : 'rgb(4,7,20)'} fillOpacity={groundTint} />
+        ) : null}
+        {geo.grid.map((d, i) => (
+          <Path key={`g${i}`} d={d} stroke="#FFFFFF" strokeOpacity={0.12} strokeWidth={1} strokeDasharray="2 6" fill="none" />
+        ))}
+        {geo.horizon.map((d, i) => (
+          <Path key={`h${i}`} d={d} stroke="#FFFFFF" strokeOpacity={0.75} strokeWidth={1.5} fill="none" />
+        ))}
+        {geo.ticks.map((t) => (
+          <Line key={t.az} x1={t.a.x} y1={t.a.y} x2={t.b.x} y2={t.b.y} stroke="#FFFFFF" strokeOpacity={0.5} strokeWidth={1} />
+        ))}
+        {geo.cardinals.map((c) => (
+          <G key={c.l}>
+            <Circle cx={c.x} cy={c.y} r={3} fill={c.l === 'N' ? colors.accent : '#FFFFFF'} />
+            <SvgText x={c.x} y={c.y + 20} fontSize={c.l.length === 1 ? 15 : 12} fontWeight={weight.bold} fill={c.l === 'N' ? colors.accent : '#FFFFFF'} textAnchor="middle">
+              {c.l}
+            </SvgText>
+          </G>
+        ))}
+        {geo.solstices.map((segs, i) =>
+          segs.map((d, j) => (
+            <Path key={`s${i}${j}`} d={d} stroke={i === 0 ? '#FF8A6B' : '#8FB4FF'} strokeOpacity={0.7} strokeWidth={1.5} strokeDasharray="6 6" fill="none" />
+          )),
+        )}
+        {geo.moonAbove.map((d, i) => (
+          <Path key={`m${i}`} d={d} stroke={colors.moon} strokeOpacity={0.8} strokeWidth={2} strokeDasharray="3 7" strokeLinecap="round" fill="none" />
+        ))}
+        {geo.sunBelow.map((d, i) => (
+          <Path key={`sb${i}`} d={d} stroke="#FFFFFF" strokeOpacity={0.25} strokeWidth={1.5} strokeDasharray="2 6" fill="none" />
+        ))}
+        {geo.sunAbove.map((d, i) => (
+          <G key={`sa${i}`}>
+            <Path d={d} stroke={colors.accent} strokeOpacity={0.35} strokeWidth={8} fill="none" strokeLinecap="round" />
+            <Path d={d} stroke={colors.accent} strokeWidth={2.5} fill="none" strokeLinecap="round" />
+          </G>
+        ))}
+        {geo.sunHours.map((h) => (
+          <G key={`hr${h.h}`}>
+            <Circle cx={h.x} cy={h.y} r={4} fill="#FFFFFF" stroke={colors.accent} strokeWidth={2} />
+            <SvgText x={h.x + 9} y={h.y - 8} fontSize={11} fontWeight={weight.bold} fill="#FFFFFF">
+              {use24h ? `${h.h}h` : `${h.h % 12 || 12}${h.h < 12 ? 'a' : 'p'}`}
+            </SvgText>
+          </G>
+        ))}
+        {target?.visible && targetColor ? <SelectionRing x={target.x} y={target.y} color={targetColor} locked={target.locked} /> : null}
+        {calibrating ? <Circle cx={width / 2} cy={height / 2} r={26} stroke="#FFFFFF" strokeWidth={1.5} strokeDasharray="4 4" fill="none" /> : null}
+        <Line x1={width / 2 - 10} y1={height / 2} x2={width / 2 + 10} y2={height / 2} stroke="#FFFFFF" strokeOpacity={0.7} />
+        <Line x1={width / 2} y1={height / 2 - 10} x2={width / 2} y2={height / 2 + 10} stroke="#FFFFFF" strokeOpacity={0.7} />
+      </Svg>
+      {moonVisible ? (
+        <View pointerEvents="none" style={[styles.body, { left: moonScreen.x - 22, top: moonScreen.y - 22, opacity: underGround(selected.moon.alt) }]}>
+          <MoonGlyph size={44} angle={selected.phase.angle} southern={southern} />
+        </View>
+      ) : null}
+      {sunVisible ? (
+        <View pointerEvents="none" style={[styles.body, { left: sunScreen.x - 30, top: sunScreen.y - 30, opacity: underGround(selected.sun.alt) }]}>
+          <SunGlyph size={60} />
+          <View style={styles.bodyLabel}>
+            <Text variant="caption">
+              {timeLabel} · {formatDegrees(selected.sun.alt)}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+      {sunEdge ? (
+        <View pointerEvents="none" style={[styles.edge, { left: sunEdge.x - 26, top: sunEdge.y - 26 }]}>
+          <View style={{ transform: [{ rotate: `${sunEdge.rotation}deg` }] }}>
+            <Icon name="arrowUp" size={18} color={colors.textOnAccent} weight="heavy" />
+          </View>
+        </View>
+      ) : null}
+      {targetEdge && targetTitle ? (
+        <View pointerEvents="none" style={[styles.targetEdge, { left: targetEdge.x - 22, top: targetEdge.y - 22 }]}>
+          <View style={[styles.targetArrow, { transform: [{ rotate: `${targetEdge.rotation}deg` }] }]}>
+            <Icon name="arrowUp" size={16} color={colors.onPrimary} weight="heavy" />
+          </View>
+          <View style={styles.targetTag}>
+            <Text variant="caption" numberOfLines={1}>
+              {targetTitle} · {Math.round(targetEdge.distance)}°
+            </Text>
+          </View>
+        </View>
+      ) : null}
+    </>
+  );
+});
 
 function VirtualSky({ sunAlt }: { sunAlt: number }) {
   // Same sky palette as the rest of the app, driven by the selected time.
@@ -1068,6 +1296,7 @@ function TimeScrubber({
   use24h,
   sunrise,
   sunset,
+  accessory,
 }: {
   minute: number;
   /** Null when the cursor is on another day. */
@@ -1079,6 +1308,8 @@ function TimeScrubber({
   use24h: boolean;
   sunrise: number | null;
   sunset: number | null;
+  /** Controls at the end of the header row. */
+  accessory?: ReactNode;
 }) {
   const [width, setWidth] = useState(0);
   const lastHour = useRef(Math.floor(minute / 60));
@@ -1107,7 +1338,7 @@ function TimeScrubber({
   return (
     <View style={{ gap: 6 }}>
       <View style={styles.scrubHeader}>
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.xs }}>
+        <View style={styles.scrubTime}>
           <Text variant="headline" style={{ fontVariant: ['tabular-nums'] }}>
             {formatMinuteOfDay(minute, use24h)}
           </Text>
@@ -1115,22 +1346,25 @@ function TimeScrubber({
             <Text variant="footnote" color={colors.accent}>
               {dayLabel}
             </Text>
+          ) : live ? (
+            <View style={styles.liveTag}>
+              <View style={styles.liveDot} />
+              <Text variant="footnote" color={colors.textSecondary}>
+                Ao vivo
+              </Text>
+            </View>
           ) : null}
         </View>
-        {off ? (
-          <PressableScale onPress={onNow} hapticOnPress="soft" style={styles.nowPill}>
-            <Text variant="label" color={colors.onPrimary}>
-              Agora
-            </Text>
-          </PressableScale>
-        ) : (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-            {live ? <View style={styles.liveDot} /> : null}
-            <Text variant="caption" color={colors.textSecondary}>
-              {live ? 'Ao vivo' : 'Agora'}
-            </Text>
-          </View>
-        )}
+        <View style={styles.scrubActions}>
+          {off ? (
+            <PressableScale onPress={onNow} hapticOnPress="soft" style={styles.nowPill} accessibilityRole="button">
+              <Text variant="label" color={colors.onPrimary}>
+                Agora
+              </Text>
+            </PressableScale>
+          ) : null}
+          {accessory}
+        </View>
       </View>
       <GestureDetector gesture={pan}>
         <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={styles.track} accessibilityLabel="Horário" accessibilityRole="adjustable">
@@ -1166,6 +1400,8 @@ const styles = StyleSheet.create({
   targetEdge: { position: 'absolute', width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   targetArrow: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 18px rgba(246,245,242,0.45)' },
   targetTag: { position: 'absolute', top: 48, backgroundColor: glassBg, paddingHorizontal: 8, paddingVertical: 2, borderRadius: radius.pill, minWidth: 90, alignItems: 'center' },
+  scrimTop: { position: 'absolute', top: 0, left: 0, right: 0 },
+  scrimBottom: { position: 'absolute', bottom: 0, left: 0, right: 0 },
   hudTop: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: space.md, gap: space.sm, alignItems: 'center' },
   hudRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', alignSelf: 'stretch' },
   hudBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: glassBg, alignItems: 'center', justifyContent: 'center' },
@@ -1174,7 +1410,7 @@ const styles = StyleSheet.create({
   modeBtnOn: { backgroundColor: colors.primary },
   headingPill: { alignItems: 'center', backgroundColor: glassBg, paddingHorizontal: space.md, paddingVertical: 6, borderRadius: radius.pill, minWidth: 120 },
   layersPanel: { alignSelf: 'stretch', gap: space.xs, backgroundColor: 'rgba(8,12,34,0.72)', borderRadius: radius.card, padding: space.sm },
-  layersHead: { letterSpacing: 0.8, paddingHorizontal: space.xxs },
+  layersHead: { paddingHorizontal: space.xxs },
   layers: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: space.xs },
   layerChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: space.sm, height: 36, borderRadius: radius.pill, backgroundColor: glassBg },
   layerChipOn: { backgroundColor: colors.primary },
@@ -1187,8 +1423,12 @@ const styles = StyleSheet.create({
   bottomActions: { flexDirection: 'row', alignItems: 'center', minHeight: 36, justifyContent: 'center', gap: space.xs },
   smallAction: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: glassBg, paddingHorizontal: space.md, height: 36, borderRadius: radius.pill },
   roundAction: { width: 36, height: 36, borderRadius: 18, backgroundColor: glassBg, alignItems: 'center', justifyContent: 'center' },
-  scrubHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: space.xxs },
-  nowPill: { backgroundColor: colors.primary, paddingHorizontal: space.sm, paddingVertical: 4, borderRadius: radius.pill },
+  scrubHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: space.xxs, minHeight: 36 },
+  scrubTime: { flexDirection: 'row', alignItems: 'baseline', gap: space.xs },
+  scrubActions: { flexDirection: 'row', alignItems: 'center', gap: space.xs },
+  liveTag: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'center' },
+  speed: { height: 36, paddingHorizontal: space.sm, borderRadius: radius.pill, backgroundColor: glassBg, justifyContent: 'center' },
+  nowPill: { backgroundColor: colors.primary, paddingHorizontal: space.sm, height: 30, justifyContent: 'center', borderRadius: radius.pill },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent },
   track: { height: 44, borderRadius: radius.pill, backgroundColor: glassBg, justifyContent: 'center', overflow: 'visible' },
   daySpan: { position: 'absolute', top: 18, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,182,72,0.45)' },

@@ -10,6 +10,7 @@ import { computeSunDay } from '@/astro/sun';
 import { addDays, dayKey, daysBetweenKeys, startOfDay, wallClock } from '@/astro/time';
 import { Card, Divider } from '@/components/Card';
 import { Icon, type IconName } from '@/components/Icon';
+import { lazyTab } from '@/components/LazyTab';
 import { MoonGlyph } from '@/components/MoonGlyph';
 import { PressableScale } from '@/components/Pressable';
 import { Metric, Reveal, ScreenTitle } from '@/components/Screen';
@@ -39,7 +40,9 @@ const KIND_META: Record<SkyEventKind, { icon: IconName; color: string; filter: F
   meteor: { icon: 'meteor', color: '#9DB2FF', filter: 'meteor' },
 };
 
-export default function EventsScreen() {
+export default lazyTab(EventsScreen);
+
+function EventsScreen() {
   const insets = useSafeAreaInsets();
   const bottom = useTabBarSpace();
   const place = usePlace();

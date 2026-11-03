@@ -1,12 +1,13 @@
 import * as A from 'astronomy-engine';
 
 import type { SkyEvent } from '@/astro/events';
-import { upcomingEvents } from '@/astro/events';
+import { upcomingEventsForDay } from '@/astro/events';
 import { formatDaysUntil, formatDuration, formatSignedMinutes, formatTime, MONTHS_SHORT, WEEKDAYS_LETTER } from '@/astro/format';
 import { computeMoonDay, moonState, nextQuarters, PHASE_LABEL, type PhaseKey } from '@/astro/moon';
 import { computePath, computeSunDay, observer, sunPosition, type SunDay } from '@/astro/sun';
 import { addDays, dayKey, daysBetweenKeys, MIN_MS, shiftKey, startOfDay, wallClock } from '@/astro/time';
 import { computeStreak, bestStreak, levelFor } from '@/lib/achievements';
+import { dayMemo } from '@/lib/dayMemo';
 import type { SavedPlace } from '@/store/app';
 import { SKY } from '@/theme/sky';
 
@@ -43,21 +44,18 @@ export function skyGradient(alt: number): string[] {
   return [frame.colors[0], frame.colors[1]];
 }
 
-const NIGHT_BG = ['#05081A', '#10153A'];
+export const NIGHT_BG = ['#05081A', '#10153A'];
 
 type Ctx = { place: SavedPlace; use24h: boolean };
 
-const dayCache = new Map<string, SunDay>();
-function sunDayFor(place: SavedPlace, start: Date): SunDay {
-  const key = `${place.latitude},${place.longitude},${start.getTime()}`;
-  let d = dayCache.get(key);
-  if (!d) {
-    d = computeSunDay(place, start);
-    dayCache.set(key, d);
-    if (dayCache.size > 8) dayCache.delete(dayCache.keys().next().value as string);
-  }
-  return d;
-}
+// A widget sync renders ~60 timeline entries; most of what they show only changes once a
+// day, so everything expensive is computed once per place and local day.
+export const sunDayFor = dayMemo(8, computeSunDay);
+const sunPathFor = dayMemo(3, (place, start) => computePath(A.Body.Sun, place, start).alt);
+const moonDayFor = dayMemo(3, computeMoonDay);
+// Enough quarters past the day's start that the next full and new moon are always in it.
+const quartersFor = dayMemo(3, (_place, start) => nextQuarters(start, 9));
+const eventsFor = upcomingEventsForDay;
 
 function window(start: Date | null, end: Date | null, ctx: Ctx) {
   return start && end ? `${formatTime(start, ctx.place.tz, ctx.use24h)}–${formatTime(end, ctx.place.tz, ctx.use24h)}` : '—';
@@ -81,7 +79,7 @@ export function sunProps(ctx: Ctx, at: Date): SunWidgetProps {
   const next = candidates[0];
   const alt = sunPosition(at, observer(place)).alt;
 
-  const path = computePath(A.Body.Sun, place, start).alt;
+  const path = sunPathFor(place, start);
   const curve = Array.from({ length: 25 }, (_, h) => Math.max(-12, Math.round(path[Math.min(path.length - 1, h * 10)] * 10) / 10));
 
   let dayProgress = 0;
@@ -116,8 +114,9 @@ export function moonProps(ctx: Ctx, at: Date): MoonWidgetProps {
   const { place, use24h } = ctx;
   const tz = place.tz;
   const st = moonState(at);
-  const day = computeMoonDay(place, startOfDay(at, tz));
-  const quarters = nextQuarters(at, 8);
+  const start = startOfDay(at, tz);
+  const day = moonDayFor(place, start);
+  const quarters = quartersFor(place, start).filter((q) => q.date.getTime() > at.getTime());
   const full = quarters.find((q) => q.key === 'full');
   const fresh = quarters.find((q) => q.key === 'new');
   const short = (d?: Date) => {
@@ -237,7 +236,7 @@ const EVENT_SYMBOL: Record<SkyEvent['kind'], string> = {
 
 export function eventProps(ctx: Ctx, at: Date): EventWidgetProps {
   const tz = ctx.place.tz;
-  const list = upcomingEvents(ctx.place, startOfDay(at, tz), 400);
+  const list = eventsFor(ctx.place, startOfDay(at, tz));
   const fmt = (d: Date) => {
     const w = wallClock(d, tz);
     return `${w.day} ${MONTHS_SHORT[w.month]}`;

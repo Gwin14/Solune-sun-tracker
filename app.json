@@ -8,7 +8,7 @@
     "scheme": "solune",
     "userInterfaceStyle": "dark",
     "ios": {
-      "icon": "./assets/images/icon.png",
+      "icon": "./assets/Solune.icon",
       "bundleIdentifier": "com.fabiosantos.solune",
       "supportsTablet": false,
       "infoPlist": {

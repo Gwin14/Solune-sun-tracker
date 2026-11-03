@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from 'react';
+import { memo, useMemo, type ReactNode } from 'react';
 import { Circle, G, Path, Text as SvgText } from 'react-native-svg';
 
 import { catalog, starColor } from '@/astro/sky/catalog';
@@ -79,35 +79,62 @@ const textWidth = (s: string, size: number, spacing = 0) => s.length * (size * 0
 
 export const PlanetariumSky = memo(function PlanetariumSky({ frame, trails, trailIndices, project, width, height, fov, layers, visibility, cull, highlight, selected }: Props) {
   const cat = catalog();
+  // Trails come one array per time step; regroup them once per frame so each star's arc is
+  // contiguous and can be walked without copying on every redraw.
+  const trailsByStar = useMemo(() => {
+    if (!trails?.length) return null;
+    const steps = trails.length;
+    const n = trails[0].length / 3;
+    const out = new Float64Array(n * steps * 3);
+    for (let k = 0; k < steps; k++) {
+      const src = trails[k];
+      for (let s = 0; s < n; s++) {
+        const o = (s * steps + k) * 3;
+        out[o] = src[s * 3];
+        out[o + 1] = src[s * 3 + 1];
+        out[o + 2] = src[s * 3 + 2];
+      }
+    }
+    return out;
+  }, [trails]);
   const degPx = project.focal * (Math.PI / 180);
   const pt: Pt = { x: 0, y: 0, z: 0 };
   const margin = 40;
   const onScreen = (p: Pt, m = margin) => p.x > -m && p.x < width + m && p.y > -m && p.y < height + m;
   const maxJump = Math.max(width, height) * 1.2;
+  const maxJump2 = maxJump * maxJump;
   const r1 = (v: number) => Math.round(v * 10) / 10;
+  const hw = width / 2;
+  const hh = height / 2;
 
-  /** Polyline over flat ENU triples, broken where it leaves the view or dips below the ground. */
-  const polyline = (v: ArrayLike<number>, out: string[], from = 0, to = v.length) => {
+  /**
+   * Polyline over flat ENU triples (`stride` apart, `count` vertices from `from`), broken
+   * where it leaves the view or dips below the ground. Runs for every line on every frame,
+   * so it avoids allocations and string scans.
+   */
+  const polyline = (v: ArrayLike<number>, out: string[], from = 0, count = (v.length - from) / 3, stride = 3) => {
     let cur = '';
+    let n = 0;
     let lx = 0;
     let ly = 0;
-    let has = false;
-    for (let i = from; i < to; i += 3) {
+    for (let k = 0, i = from; k < count; k++, i += stride) {
       const u = v[i + 2];
       project(v[i], v[i + 1], u, pt);
-      const ok = Number.isFinite(pt.x) && !(cull && u < -0.01) && Math.abs(pt.x - width / 2) < width * 3 && Math.abs(pt.y - height / 2) < height * 3;
-      if (!ok || (has && Math.hypot(pt.x - lx, pt.y - ly) > maxJump)) {
-        if (cur.includes('L')) out.push(cur);
+      const x = pt.x;
+      const y = pt.y;
+      const ok = x === x && !(cull && u < -0.01) && Math.abs(x - hw) < width * 3 && Math.abs(y - hh) < height * 3;
+      if (!ok || (n && (x - lx) * (x - lx) + (y - ly) * (y - ly) > maxJump2)) {
+        if (n > 1) out.push(cur);
         cur = '';
-        has = false;
+        n = 0;
         if (!ok) continue;
       }
-      cur += `${has ? 'L' : 'M'}${r1(pt.x)} ${r1(pt.y)}`;
-      lx = pt.x;
-      ly = pt.y;
-      has = true;
+      cur += (n ? 'L' : 'M') + r1(x) + ' ' + r1(y);
+      lx = x;
+      ly = y;
+      n++;
     }
-    if (cur.includes('L')) out.push(cur);
+    if (n > 1) out.push(cur);
   };
 
   const labels = new Labels();
@@ -197,13 +224,9 @@ export const PlanetariumSky = memo(function PlanetariumSky({ frame, trails, trai
       polyline(ring, poleRings);
     }
   }
-  if (layers.trails && trails && dark > 0.05) {
-    const n = trailIndices.length;
-    const tmp = new Float64Array(trails.length * 3);
-    for (let s = 0; s < n; s++) {
-      for (let k = 0; k < trails.length; k++) tmp.set(trails[k].subarray(s * 3, s * 3 + 3), k * 3);
-      polyline(tmp, cat.mag[trailIndices[s]] < 2.2 ? trailBright : trailFaint);
-    }
+  if (layers.trails && trailsByStar && dark > 0.05) {
+    const steps = trails!.length;
+    for (let s = 0; s < trailIndices.length; s++) polyline(trailsByStar, cat.mag[trailIndices[s]] < 2.2 ? trailBright : trailFaint, s * steps * 3, steps);
   }
 
   // ---------- Planets ----------
@@ -233,7 +256,8 @@ export const PlanetariumSky = memo(function PlanetariumSky({ frame, trails, trai
   }
 
   // ---------- Stars ----------
-  const buckets = new Map<number, string>();
+  // Faint stars batched by size: one path per quarter-pixel radius step.
+  const buckets: string[] = [];
   const bright: ReactNode[] = [];
   const nameMag = fov > 95 ? 0.6 : fov > 70 ? 1.5 : fov > 45 ? 2.2 : 3.2;
   for (let i = 0; i < cat.count; i++) {
@@ -255,8 +279,8 @@ export const PlanetariumSky = memo(function PlanetariumSky({ frame, trails, trai
         </G>,
       );
     } else {
-      const key = Math.round(r * 4) / 4;
-      buckets.set(key, (buckets.get(key) ?? '') + `M${r1(pt.x)} ${r1(pt.y)}h0`);
+      const key = Math.round(r * 4);
+      buckets[key] = (buckets[key] ?? '') + 'M' + r1(pt.x) + ' ' + r1(pt.y) + 'h0';
     }
     const named = layers.labels ? cat.namedByIndex.get(i) : undefined;
     if (named && (m <= nameMag || selected === `star:${i}`)) {
@@ -271,9 +295,11 @@ export const PlanetariumSky = memo(function PlanetariumSky({ frame, trails, trai
       }
     }
   }
-  const starPaths = [...buckets.entries()].map(([r, d]) => (
-    <Path key={`s${r}`} d={d} stroke="#F4F3FF" strokeOpacity={Math.min(1, 0.62 + r * 0.2)} strokeWidth={r * 2} strokeLinecap="round" fill="none" />
-  ));
+  const starPaths: ReactNode[] = [];
+  buckets.forEach((d, key) => {
+    const r = key / 4;
+    starPaths.push(<Path key={`s${r}`} d={d} stroke="#F4F3FF" strokeOpacity={Math.min(1, 0.62 + r * 0.2)} strokeWidth={r * 2} strokeLinecap="round" fill="none" />);
+  });
 
   // ---------- Deep sky ----------
   const dsoNodes: ReactNode[] = [];

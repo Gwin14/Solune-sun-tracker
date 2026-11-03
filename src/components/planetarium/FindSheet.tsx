@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { memo, useDeferredValue, useMemo, useState } from 'react';
+import { Pressable, SectionList, StyleSheet, TextInput, View } from 'react-native';
 import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -31,31 +31,44 @@ const GROUP_ICON: Record<Group, IconName> = {
   'Céu profundo': 'telescope',
   Constelações: 'constellation',
 };
+const ORDER: Group[] = ['Favoritos', 'Destaques', 'Planetas', 'Estrelas', 'Céu profundo', 'Constelações'];
 
 const fold = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+/** Names never change, so each entry is folded once for the life of the app. */
+const folded = new Map<string, string>();
+const searchKey = (r: FindRow) => {
+  let k = folded.get(r.id);
+  if (k == null) {
+    k = `${fold(r.name)}\n${fold(r.hint)}`;
+    folded.set(r.id, k);
+  }
+  return k;
+};
 
-export function FindSheet({ rows, favorites, onPick, onClose }: Props) {
+type Section = { key: Group; g: Group; data: FindRow[] };
+
+export const FindSheet = memo(function FindSheet({ rows, favorites, onPick, onClose }: Props) {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const [onlyVisible, setOnlyVisible] = useState(false);
+  // Typing stays responsive: the list catches up with the query in a lower-priority render.
+  const deferredQuery = useDeferredValue(query);
 
-  const groups = useMemo(() => {
-    const q = fold(query.trim());
-    const filtered = rows.filter((r) => (!q || fold(r.name).includes(q) || fold(r.hint).includes(q)) && (!onlyVisible || (r.alt ?? -1) > 0));
-    const order: Group[] = ['Favoritos', 'Destaques', 'Planetas', 'Estrelas', 'Céu profundo', 'Constelações'];
-    const starred = new Set(favorites);
-    // Favourites also stay in their own group, so searching finds them where expected.
-    const favs = favorites.map((id) => filtered.find((r) => r.id === id)).filter((r): r is FindRow => !!r);
-    return order
-      .map((g) => {
-        let items = g === 'Favoritos' ? favs : filtered.filter((r) => r.group === g);
-        // Planets: what is up right now comes first.
-        if (g === 'Planetas') items = [...items].sort((a, b) => (b.alt ?? -90) - (a.alt ?? -90));
-        return { g, items };
-      })
-      .filter((x) => x.items.length)
-      .map((x) => ({ ...x, starred }));
-  }, [rows, query, onlyVisible, favorites]);
+  const sections = useMemo(() => {
+    const q = fold(deferredQuery.trim());
+    const filtered = rows.filter((r) => (!q || searchKey(r).includes(q)) && (!onlyVisible || (r.alt ?? -1) > 0));
+    const byId = new Map(filtered.map((r) => [r.id, r]));
+    const out: Section[] = [];
+    for (const g of ORDER) {
+      // Favourites also stay in their own group, so searching finds them where expected.
+      let data = g === 'Favoritos' ? favorites.map((id) => byId.get(id as TargetId)).filter((r): r is FindRow => !!r) : filtered.filter((r) => r.group === g);
+      // Planets: what is up right now comes first.
+      if (g === 'Planetas') data = [...data].sort((a, b) => (b.alt ?? -90) - (a.alt ?? -90));
+      if (data.length) out.push({ key: g, g, data });
+    }
+    return out;
+  }, [rows, deferredQuery, onlyVisible, favorites]);
+  const starred = useMemo(() => new Set(favorites), [favorites]);
 
   return (
     <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(160)} style={[StyleSheet.absoluteFill, styles.scrim]}>
@@ -93,64 +106,82 @@ export function FindSheet({ rows, favorites, onPick, onClose }: Props) {
             </Text>
           </PressableScale>
         </View>
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: space.xxxl * 2 }} showsVerticalScrollIndicator={false}>
-          {groups.map(({ g, items, starred }) => (
-            <View key={g} style={{ marginTop: space.md }}>
-              <View style={styles.groupHead}>
-                <Icon name={GROUP_ICON[g]} size={13} color={colors.textSecondary} />
-                <Text variant="footnote" color={colors.textSecondary}>
-                  {g}
-                </Text>
-              </View>
-              <View style={styles.group}>
-                {items.map((r, i) => (
-                  <Pressable
-                    key={r.id}
-                    onPress={() => {
-                      haptic.tick();
-                      onPick(r.id);
-                    }}
-                    style={({ pressed }) => [styles.row, i > 0 && styles.rowBorder, pressed && styles.rowPressed]}
-                    accessibilityRole="button">
-                    <View style={[styles.rowDot, { backgroundColor: r.color ?? colors.fillStrong }]} />
-                    <View style={{ flex: 1 }}>
-                      <View style={styles.rowTitle}>
-                        <Text variant="body" numberOfLines={1} style={{ flexShrink: 1 }}>
-                          {r.name}
-                        </Text>
-                        {g !== 'Favoritos' && starred.has(r.id) ? <Icon name="star" size={11} color={colors.accent} /> : null}
-                      </View>
-                      <Text variant="footnote" color={colors.textSecondary} numberOfLines={1}>
-                        {r.hint}
-                      </Text>
-                    </View>
-                    {r.alt != null && r.az != null ? (
-                      r.alt > 0 ? (
-                        <Text variant="subhead" color={colors.accent} style={{ fontVariant: ['tabular-nums'] }}>
-                          {formatDegrees(r.alt)} {compassPoint(r.az)}
-                        </Text>
-                      ) : (
-                        <Text variant="footnote" color={colors.textTertiary}>
-                          abaixo
-                        </Text>
-                      )
-                    ) : null}
-                    <Icon name="chevronRight" size={12} color={colors.textTertiary} />
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-          ))}
-          {!groups.length ? (
+        {/* Virtualized: only the rows on screen are mounted, so opening and typing stay light. */}
+        <SectionList
+          sections={sections}
+          keyExtractor={(r) => r.id}
+          renderSectionHeader={({ section }) => <GroupHead g={section.g} />}
+          renderItem={({ item, index, section }) => (
+            <Row row={item} first={index === 0} last={index === section.data.length - 1} star={section.g !== 'Favoritos' && starred.has(item.id)} onPick={onPick} />
+          )}
+          stickySectionHeadersEnabled={false}
+          initialNumToRender={14}
+          maxToRenderPerBatch={12}
+          windowSize={7}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={{ paddingBottom: space.xxxl * 2 }}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
             <Text variant="body" color={colors.textSecondary} align="center" style={{ marginTop: space.xxl }}>
               Nada com esse nome no céu de hoje.
             </Text>
-          ) : null}
-        </ScrollView>
+          }
+        />
       </Animated.View>
     </Animated.View>
   );
-}
+});
+
+const GroupHead = memo(function GroupHead({ g }: { g: Group }) {
+  return (
+    <View style={styles.groupHead}>
+      <Icon name={GROUP_ICON[g]} size={13} color={colors.textSecondary} />
+      <Text variant="footnote" color={colors.textSecondary}>
+        {g}
+      </Text>
+    </View>
+  );
+});
+
+const Row = memo(function Row({ row: r, first, last, star, onPick }: { row: FindRow; first: boolean; last: boolean; star: boolean; onPick: (id: TargetId) => void }) {
+  return (
+    <Pressable
+      onPress={() => {
+        haptic.tick();
+        onPick(r.id);
+      }}
+      style={({ pressed }) => [styles.row, first ? styles.rowFirst : styles.rowBorder, last && styles.rowLast, pressed && styles.rowPressed]}
+      accessibilityRole="button">
+      <View style={[styles.rowDot, { backgroundColor: r.color ?? colors.fillStrong }]} />
+      <View style={{ flex: 1 }}>
+        <View style={styles.rowTitle}>
+          <Text variant="body" numberOfLines={1} style={{ flexShrink: 1 }}>
+            {r.name}
+          </Text>
+          {star ? <Icon name="star" size={11} color={colors.accent} /> : null}
+        </View>
+        <Text variant="footnote" color={colors.textSecondary} numberOfLines={1}>
+          {r.hint}
+        </Text>
+      </View>
+      {r.alt != null && r.az != null ? (
+        r.alt > 0 ? (
+          <Text variant="subhead" color={colors.accent} style={{ fontVariant: ['tabular-nums'] }}>
+            {formatDegrees(r.alt)} {compassPoint(r.az)}
+          </Text>
+        ) : (
+          <Text variant="footnote" color={colors.textTertiary}>
+            abaixo
+          </Text>
+        )
+      ) : null}
+      <Icon name="chevronRight" size={12} color={colors.textTertiary} />
+    </Pressable>
+  );
+});
+
+const rowBg = 'rgba(255,255,255,0.05)';
 
 const styles = StyleSheet.create({
   scrim: { backgroundColor: colors.scrim },
@@ -161,9 +192,10 @@ const styles = StyleSheet.create({
   search: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: space.xs, backgroundColor: colors.fill, borderRadius: radius.pill, paddingHorizontal: space.sm, height: 40 },
   input: { flex: 1, color: colors.text, fontSize: 16, height: 40 },
   filter: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.fill, borderRadius: radius.pill, paddingHorizontal: space.sm, height: 40 },
-  groupHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6, paddingHorizontal: space.xxs },
-  group: { backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: radius.card, overflow: 'hidden' },
-  row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, paddingVertical: 10 },
+  groupHead: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: space.md, marginBottom: 6, paddingHorizontal: space.xxs },
+  row: { flexDirection: 'row', alignItems: 'center', gap: space.sm, paddingHorizontal: space.md, paddingVertical: 10, backgroundColor: rowBg },
+  rowFirst: { borderTopLeftRadius: radius.card, borderTopRightRadius: radius.card },
+  rowLast: { borderBottomLeftRadius: radius.card, borderBottomRightRadius: radius.card },
   rowBorder: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.hairline },
   rowDot: { width: 8, height: 8, borderRadius: 4 },
   rowTitle: { flexDirection: 'row', alignItems: 'center', gap: 6 },

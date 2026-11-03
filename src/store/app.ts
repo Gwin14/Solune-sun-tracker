@@ -107,7 +107,7 @@ export const DEFAULT_PLACE: SavedPlace = {
   tz: 'America/Sao_Paulo',
 };
 
-export function badgeContext(s: State): BadgeContext {
+export function badgeContext(s: Pick<State, 'checkIns' | 'arSessions' | 'places' | 'hasOnboarded'>): BadgeContext {
   const keys = s.checkIns.map((c) => c.key);
   const today = dayKey(new Date());
   return {

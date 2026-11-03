@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DarkTheme, Stack, ThemeProvider, router, usePathname } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -13,6 +14,8 @@ import { colors } from '@/theme/tokens';
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export const unstable_settings = { anchor: '(tabs)' };
+
+const queryClient = new QueryClient();
 
 const theme = {
   ...DarkTheme,
@@ -60,33 +63,45 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.ink }}>
-      <ThemeProvider value={theme}>
-        <StatusBar style="light" />
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ink } }}>
-          <Stack.Protected guard={hasOnboarded}>
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="settings" options={{ presentation: 'modal', contentStyle: { backgroundColor: colors.inkSheet } }} />
-            <Stack.Screen
-              name="locations"
-              options={{
-                presentation: 'formSheet',
-                sheetAllowedDetents: [0.75, 1],
-                sheetGrabberVisible: true,
-                sheetCornerRadius: 28,
-                contentStyle: { backgroundColor: colors.inkSheet },
-              }}
-            />
-            <Stack.Screen
-              name="celebrate"
-              options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }}
-            />
-          </Stack.Protected>
-          <Stack.Protected guard={!hasOnboarded}>
-            <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
-          </Stack.Protected>
-        </Stack>
-        <CelebrationWatcher />
-      </ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider value={theme}>
+          <StatusBar style="light" />
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ink } }}>
+            <Stack.Protected guard={hasOnboarded}>
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="settings" options={{ presentation: 'modal', contentStyle: { backgroundColor: colors.inkSheet } }} />
+              <Stack.Screen
+                name="locations"
+                options={{
+                  presentation: 'formSheet',
+                  sheetAllowedDetents: [0.75, 1],
+                  sheetGrabberVisible: true,
+                  sheetCornerRadius: 28,
+                  contentStyle: { backgroundColor: colors.inkSheet },
+                }}
+              />
+              <Stack.Screen
+                name="object/[id]"
+                options={{
+                  headerShown: true,
+                  headerTransparent: true,
+                  title: '',
+                  headerBackButtonDisplayMode: 'minimal',
+                  headerTintColor: colors.text,
+                }}
+              />
+              <Stack.Screen
+                name="celebrate"
+                options={{ presentation: 'transparentModal', animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }}
+              />
+            </Stack.Protected>
+            <Stack.Protected guard={!hasOnboarded}>
+              <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
+            </Stack.Protected>
+          </Stack>
+          <CelebrationWatcher />
+        </ThemeProvider>
+      </QueryClientProvider>
     </GestureHandlerRootView>
   );
 }

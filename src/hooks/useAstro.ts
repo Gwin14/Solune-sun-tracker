@@ -2,7 +2,7 @@ import * as A from 'astronomy-engine';
 import { useEffect, useMemo, useState } from 'react';
 import { AppState } from 'react-native';
 
-import { upcomingEvents } from '@/astro/events';
+import { upcomingEventsForDay } from '@/astro/events';
 import { computeMoonDay, moonState, nextQuarters } from '@/astro/moon';
 import { computePath, computeSunDay, computeYearDaylight, moonPosition, observer, sunPosition } from '@/astro/sun';
 import { addDays, dayKey, startOfDay, wallClock } from '@/astro/time';
@@ -68,7 +68,7 @@ export function useQuarters(now: Date) {
 export function useEvents(place: SavedPlace, now: Date) {
   const key = dayKey(now, place.tz);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(() => upcomingEvents(place, startOfDay(now, place.tz)), [key, place]);
+  return useMemo(() => upcomingEventsForDay(place, startOfDay(now, place.tz)), [key, place]);
 }
 
 export function minuteOfDay(date: Date, tz?: string) {

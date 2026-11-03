@@ -1,4 +1,3 @@
-import { BlurView } from 'expo-blur';
 import type { ReactNode } from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
@@ -20,16 +19,14 @@ type Props = {
   padded?: boolean;
 };
 
-/** Translucent sky card. Blur on iOS/web; a denser tint on Android where blur is costly. */
+/**
+ * Translucent sky card. A flat tint rather than a live blur: the sky behind is a smooth
+ * gradient, so a blur looked the same while re-rendering under every card on each scroll
+ * frame and each twinkle.
+ */
 export function Card({ title, icon, iconColor = colors.textSecondary, accessory, children, style, contentStyle, onPress, padded = true }: Props) {
   const body = (
     <View style={[styles.card, style]}>
-      {process.env.EXPO_OS === 'android' ? (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(8,12,34,0.5)' }]} />
-      ) : (
-        <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
-      )}
-      <View style={[StyleSheet.absoluteFill, styles.tint]} />
       {title ? (
         <View style={styles.header}>
           {icon ? <Icon name={icon} size={13} color={iconColor} /> : null}
@@ -61,8 +58,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.glassBorder,
+    backgroundColor: 'rgba(8,12,34,0.46)',
   },
-  tint: { backgroundColor: 'rgba(6,10,30,0.22)' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

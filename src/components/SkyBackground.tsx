@@ -1,7 +1,9 @@
 import { LinearGradient } from 'expo-linear-gradient';
+import { useIsFocused } from 'expo-router';
 import { memo, useEffect, useMemo } from 'react';
 import { StyleSheet, useWindowDimensions } from 'react-native';
 import Animated, {
+  cancelAnimation,
   Extrapolation,
   FadeIn,
   interpolate,
@@ -40,6 +42,8 @@ function Layer({ index, altitude }: { index: number; altitude: SharedValue<numbe
 
 export const SkyBackground = memo(function SkyBackground({ altitude, glowX }: Props) {
   const { width, height } = useWindowDimensions();
+  // Tabs stay mounted behind the visible one; their stars stop twinkling there.
+  const focused = useIsFocused();
   const starsStyle = useAnimatedStyle(() => ({
     opacity: interpolate(altitude.get(), [-14, -5], [1, 0], Extrapolation.CLAMP),
   }));
@@ -71,7 +75,7 @@ export const SkyBackground = memo(function SkyBackground({ altitude, glowX }: Pr
         </Animated.View>
       ) : null}
       <Animated.View style={[StyleSheet.absoluteFill, starsStyle]}>
-        <Starfield width={width} height={height} />
+        <Starfield width={width} height={height} active={focused} />
       </Animated.View>
     </Animated.View>
   );
@@ -87,7 +91,7 @@ function mulberry(seed: number) {
   };
 }
 
-const Starfield = memo(function Starfield({ width, height }: { width: number; height: number }) {
+const Starfield = memo(function Starfield({ width, height, active }: { width: number; height: number; active: boolean }) {
   const stars = useMemo(() => {
     const rand = mulberry(7);
     return Array.from({ length: 90 }, () => {
@@ -104,19 +108,20 @@ const Starfield = memo(function Starfield({ width, height }: { width: number; he
         ))}
       </Svg>
       {twinklers.map((s, i) => (
-        <Twinkle key={i} x={s.x} y={s.y} r={s.r + 0.5} delay={i * 420} />
+        <Twinkle key={i} x={s.x} y={s.y} r={s.r + 0.5} delay={i * 420} active={active} />
       ))}
     </>
   );
 });
 
-function Twinkle({ x, y, r, delay }: { x: number; y: number; r: number; delay: number }) {
+function Twinkle({ x, y, r, delay, active }: { x: number; y: number; r: number; delay: number; active: boolean }) {
   const reduce = useReducedMotion();
   const o = useSharedValue(0.8);
   useEffect(() => {
-    if (reduce) return;
+    if (reduce || !active) return;
     o.set(withDelay(delay, withRepeat(withSequence(withTiming(0.2, { duration: 1600 }), withTiming(1, { duration: 1600 })), -1, true)));
-  }, [delay, o, reduce]);
+    return () => cancelAnimation(o);
+  }, [delay, o, reduce, active]);
   const style = useAnimatedStyle(() => ({ opacity: o.get() }));
   return (
     <Animated.View

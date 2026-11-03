@@ -98,3 +98,9 @@ const COMPASS = ['N', 'NNE', 'NE', 'ENE', 'L', 'ESE', 'SE', 'SSE', 'S', 'SSO', '
 export function compassPoint(azimuth: number): string {
   return COMPASS[Math.round((((azimuth % 360) + 360) % 360) / 22.5) % 16];
 }
+
+const DIRECTIONS = ['norte', 'nordeste', 'leste', 'sudeste', 'sul', 'sudoeste', 'oeste', 'noroeste'];
+/** The direction spelled out for a sentence: "a nordeste". */
+export function directionName(azimuth: number): string {
+  return DIRECTIONS[Math.round((((azimuth % 360) + 360) % 360) / 45) % 8];
+}

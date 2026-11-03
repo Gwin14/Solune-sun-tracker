@@ -521,7 +521,7 @@ export const en: Strings = {
     title: 'Solune Pro',
     subtitle: 'The whole sky, on your schedule.',
     features: [
-      { icon: 'widget', title: 'Widgets & Lock Screen', body: 'Eight widgets with the sun, moon, golden hour and tonight’s sky.' },
+      { icon: 'widget', title: 'Widgets & Live Activities', body: 'Eight widgets, plus a golden hour countdown on the Lock Screen and in the Dynamic Island.' },
       { icon: 'stars', title: 'Full planetarium', body: 'Find any star, deep sky, star trails and time-lapse.' },
       { icon: 'bell', title: 'Advanced reminders', body: 'Golden hour, full moon, new moon and early heads-up.' },
       { icon: 'heart', title: 'Support an indie app', body: 'No ads, no tracking. Your support keeps Solune going.' },

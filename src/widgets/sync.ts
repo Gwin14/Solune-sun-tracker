@@ -3,7 +3,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { strings } from '@/i18n';
-import { isPro } from '@/lib/purchases';
+import { isPro, requirePro } from '@/lib/purchases';
 import { selectPlace, useApp } from '@/store/app';
 import { supportsWidgets } from '@/platform/native';
 
@@ -122,10 +122,13 @@ export const liveActivitiesAvailable = widgetsAvailable;
 /**
  * Starts a Live Activity for the next golden hour, sunset or sunrise, replacing any other.
  * It goes stale when the moment ends and is cleared on the next launch after that.
+ * Live Activities are Solune Pro: every entry point (button, quick action, Siri) lands here,
+ * and everyone else sees the paywall instead.
  */
 export async function startSkyMoment(kind: SkyMomentKind): Promise<boolean> {
   const r = native();
   if (!r) return false;
+  if (!requirePro()) return false;
   const props = skyMomentProps(context(), kind, new Date());
   if (!props) return false;
   await endSkyMoments();

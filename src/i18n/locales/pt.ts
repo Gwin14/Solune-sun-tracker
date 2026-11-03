@@ -524,7 +524,7 @@ export const pt = {
     title: 'Solune Pro',
     subtitle: 'O céu inteiro, no seu ritmo.',
     features: [
-      { icon: 'widget', title: 'Widgets e Tela Bloqueada', body: 'Oito widgets com sol, lua, hora dourada e o céu desta noite.' },
+      { icon: 'widget', title: 'Widgets e Live Activities', body: 'Oito widgets e a contagem da hora dourada na Tela Bloqueada e na Dynamic Island.' },
       { icon: 'stars', title: 'Planetário completo', body: 'Encontrar qualquer estrela, céu profundo, rastros e time-lapse.' },
       { icon: 'bell', title: 'Lembretes avançados', body: 'Hora dourada, lua cheia, lua nova e aviso com antecedência.' },
       { icon: 'heart', title: 'Apoie um app independente', body: 'Sem anúncios, sem rastreamento. Seu apoio mantém o Solune vivo.' },

@@ -522,7 +522,7 @@ export const de: Strings = {
     title: 'Solune Pro',
     subtitle: 'Der ganze Himmel, in deinem Takt.',
     features: [
-      { icon: 'widget', title: 'Widgets und Sperrbildschirm', body: 'Acht Widgets mit Sonne, Mond, goldener Stunde und dem Himmel heute Nacht.' },
+      { icon: 'widget', title: 'Widgets und Live-Aktivitäten', body: 'Acht Widgets und der Countdown zur goldenen Stunde auf dem Sperrbildschirm und in der Dynamic Island.' },
       { icon: 'stars', title: 'Vollständiges Planetarium', body: 'Jeden Stern finden, Deep Sky, Sternspuren und Zeitraffer.' },
       { icon: 'bell', title: 'Erweiterte Erinnerungen', body: 'Goldene Stunde, Vollmond, Neumond und Vorwarnung.' },
       { icon: 'heart', title: 'Unterstütze eine Indie-App', body: 'Keine Werbung, kein Tracking. Deine Unterstützung hält Solune am Leben.' },

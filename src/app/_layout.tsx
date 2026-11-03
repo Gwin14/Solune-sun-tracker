@@ -12,6 +12,9 @@ import { useLaunch } from '@/store/launch';
 import { colors } from '@/theme/tokens';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+// The launch mark dissolves into colors.ink, the splash's own background, so only the mark moves.
+const SPLASH_FADE = 350;
+SplashScreen.setOptions({ fade: true, duration: SPLASH_FADE });
 
 export const unstable_settings = { anchor: '(tabs)' };
 
@@ -53,7 +56,7 @@ export default function RootLayout() {
     // Entrances start once the launch screen has actually left.
     SplashScreen.hideAsync()
       .catch(() => {})
-      .finally(() => setTimeout(() => useLaunch.getState().reveal(), 120));
+      .finally(() => setTimeout(() => useLaunch.getState().reveal(), SPLASH_FADE));
     if (useApp.getState().hasOnboarded) {
       refreshCurrentLocation().finally(() => rescheduleNotifications());
     }

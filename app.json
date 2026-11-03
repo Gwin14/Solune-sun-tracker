@@ -250,6 +250,12 @@
       "es": "./locales/es.json",
       "fr": "./locales/fr.json",
       "de": "./locales/de.json"
+    },
+    "owner": "gwin14",
+    "extra": {
+      "eas": {
+        "projectId": "9e04a7d8-ee46-480d-9102-326228218b43"
+      }
     }
   }
 }

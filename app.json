@@ -206,7 +206,8 @@
         }
       ],
       "expo-app-intents",
-      "expo-quick-actions"
+      "expo-quick-actions",
+      "./plugins/withReleaseScheme"
     ],
     "experiments": {
       "typedRoutes": true,

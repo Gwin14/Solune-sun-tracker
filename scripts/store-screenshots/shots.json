@@ -1,0 +1,27 @@
+[
+  { "input": "raw/pt/01-camera.png", "output": "out/pt-BR/01-camera.png", "island": false,
+    "title": "O caminho do sol\nno céu real", "subtitle": "Aponte a câmera e veja o sol hora a hora" },
+  { "input": "raw/pt/02-today.png", "output": "out/pt-BR/02-today.png",
+    "title": "Nascer e pôr do sol\nao minuto", "subtitle": "Com hora dourada e hora azul" },
+  { "input": "raw/pt/03-moon.png", "output": "out/pt-BR/03-moon.png",
+    "title": "Fases da lua,\ndia a dia", "subtitle": "Nascer da lua, superluas e eclipses" },
+  { "input": "raw/pt/04-planetarium.png", "output": "out/pt-BR/04-planetarium.png",
+    "title": "Um planetário\nno seu bolso", "subtitle": "Estrelas, constelações e planetas" },
+  { "input": "raw/pt/05-events.png", "output": "out/pt-BR/05-events.png",
+    "title": "Nunca perca\num eclipse", "subtitle": "Chuvas de meteoros, superluas e estações" },
+  { "input": "raw/pt/06-reminders.png", "output": "out/pt-BR/06-reminders.png",
+    "title": "Avisos antes da\nmelhor luz", "subtitle": "Nascer e pôr do sol, lua cheia e mais" },
+
+  { "input": "raw/en/01-camera.png", "output": "out/en-US/01-camera.png", "island": false,
+    "title": "See the sun's path\nin the real sky", "subtitle": "Point your camera and follow it hour by hour" },
+  { "input": "raw/en/02-today.png", "output": "out/en-US/02-today.png",
+    "title": "Sunrise & sunset,\nto the minute", "subtitle": "Plus golden hour and blue hour" },
+  { "input": "raw/en/03-moon.png", "output": "out/en-US/03-moon.png",
+    "title": "Moon phases,\nday by day", "subtitle": "Moonrise, supermoons and eclipses" },
+  { "input": "raw/en/04-planetarium.png", "output": "out/en-US/04-planetarium.png",
+    "title": "A planetarium\nin your pocket", "subtitle": "Stars, constellations and planets" },
+  { "input": "raw/en/05-events.png", "output": "out/en-US/05-events.png",
+    "title": "Never miss\nan eclipse", "subtitle": "Meteor showers, supermoons and seasons" },
+  { "input": "raw/en/06-reminders.png", "output": "out/en-US/06-reminders.png",
+    "title": "Alerts before\nthe best light", "subtitle": "Sunrise, sunset, full moon and more" }
+]

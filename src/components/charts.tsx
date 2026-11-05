@@ -451,7 +451,7 @@ export const LunarWave = memo(function LunarWave({ illum, offset, range }: { ill
             <G key={e.i}>
               <Circle cx={geo.pts[e.i].x} cy={geo.pts[e.i].y} r={3.5} fill={e.full ? colors.moon : colors.ink} stroke={colors.moon} strokeWidth={1.2} />
               <SvgText x={geo.pts[e.i].x} y={height - 4} fontSize={9.5} fontWeight={weight.medium} fill="rgba(255,255,255,0.45)" textAnchor="middle">
-                {e.full ? 'Cheia' : 'Nova'}
+                {e.full ? strings().widgets.moonFull : strings().widgets.moonNew}
               </SvgText>
             </G>
           ))}
